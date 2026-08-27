@@ -432,7 +432,7 @@ local function build_always_match(options)
         append_args(args, chrome.args)
         append_args(args, extra_args)
         chrome.args = json_array(args)
-        local chrome_bin = options.binary or os.getenv("CHROME_BIN") or os.getenv("CHROME_PATH")
+        local chrome_bin = options.binary or os.getenv("CHROME_BIN")
         if chrome_bin then chrome.binary = chrome_bin end
         chrome.prefs = merge_prefs(chrome.prefs, options.chrome_prefs or options.prefs)
         if download_dir then

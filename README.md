@@ -22,7 +22,7 @@ To **run** a session (auto-spawn):
 
 ```bash
 sudo pacman -S lua luarocks git base-devel openssl chromium chromedriver
-luarocks install git+https://github.com/eadaradhiraj/lua-selenium.git#v0.1.0
+luarocks install git+https://github.com/eadaradhiraj/lua-selenium.git
 ```
 
 Firefox tests also need `firefox` and `geckodriver`. The installed rock is the library only; `lua tests/run.lua` needs a git clone of this repo.
@@ -90,16 +90,7 @@ lua examples/wikipedia.lua               -- smoke; skips if offline
 LuaRocks clones the git source; there is no luarocks.org upload.
 
 ```bash
-# tagged 0.1.0
-luarocks install git+https://github.com/eadaradhiraj/lua-selenium.git#v0.1.0
-
-# same, via the rockspec URL
-luarocks install https://raw.githubusercontent.com/eadaradhiraj/lua-selenium/v0.1.0/luaselenium-0.1.0-1.rockspec
-
-# latest main
 luarocks install git+https://github.com/eadaradhiraj/lua-selenium.git
-
-# from a local clone
 luarocks make luaselenium-scm-1.rockspec
 ```
 

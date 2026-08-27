@@ -154,5 +154,5 @@ What landed each pass, and what was left afterward.
 **Yet to do:** Nothing queued (Safari out of scope; closed pierce Chromium-only).
 
 ### Iteration 16 — package layout, CI, LuaRocks 0.1.0
-**Done:** Library lives under `src/webdriver.lua` with `webdriver.ws` / `webdriver.bidi` / `webdriver.test`. Tests, examples, and spec moved out of the repo root. Dropped `test_browsers.lua` (covered by the Firefox pass) and the Wikipedia screenshot artifact. GitHub Actions runs `lua tests/run.lua`. Numbered `luaselenium-0.1.0-1.rockspec` for LuaRocks.
+**Done:** Library lives under `src/webdriver.lua` with `webdriver.ws` / `webdriver.bidi` / `webdriver.test`. Tests, examples, and spec moved out of the repo root. Dropped `test_browsers.lua` (covered by the Firefox pass) and the Wikipedia screenshot artifact. GitHub Actions runs `lua tests/run.lua`. Numbered `luaselenium-0.1.0-1.rockspec` and git tag `v0.1.0`. LuaRocks.org upload waits on an API key.
 **Yet to do:** Safari out of scope; closed pierce Chromium-only.

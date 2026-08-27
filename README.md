@@ -76,9 +76,15 @@ lua examples/wikipedia.lua               -- smoke; skips if offline
 ## Install
 
 ```bash
-luarocks install luaselenium
-# or from this tree:
+luarocks make luaselenium-0.1.0-1.rockspec
+# development tree:
 luarocks make luaselenium-scm-1.rockspec
+```
+
+`v0.1.0` is tagged. Upload to LuaRocks.org needs an API key from [luarocks.org/settings](https://luarocks.org/settings/api-keys):
+
+```bash
+luarocks upload luaselenium-0.1.0-1.rockspec --api-key=YOUR_KEY
 ```
 
 ## Layout

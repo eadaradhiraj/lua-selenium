@@ -603,11 +603,32 @@ local function ensure_local_service(options, browser)
 
     local cmd = driver_command(browser, port, options.driver_path)
     local proc = spawn_driver_process(cmd)
-    if not wait_for_port(host, port, options.startup_timeout or 10) then
+    local startup = options.startup_timeout
+    if startup == nil then
+        startup = (browser == "firefox") and 30 or 10
+    end
+    if not wait_for_port(host, port, startup) then
         pcall(function() proc:close() end)
         error("Timed out waiting for " .. browser .. " driver on port " .. tostring(port))
     end
     return "http://" .. host .. ":" .. tostring(port), proc
+end
+
+function WebDriver.command_exists(bin)
+    return command_exists(bin) ~= nil
+end
+
+-- True when the browser's WebDriver binary (and Firefox itself) is on PATH.
+function WebDriver.has_driver(browser)
+    browser = normalize_browser(browser)
+    local bin = DRIVER_BINS[browser]
+    if not bin or not command_exists(bin) then
+        return false
+    end
+    if browser == "firefox" then
+        return command_exists("firefox") ~= nil
+    end
+    return true
 end
 
 -----------------------------------------------------------
@@ -1340,7 +1361,62 @@ function WebElement:save_screenshot(filename)
     return true
 end
 
-function WebElement:shadow_root()
+local function cdp_field(res, key)
+    if type(res) ~= "table" then
+        return nil
+    end
+    if res[key] ~= nil then
+        return res[key]
+    end
+    if type(res.value) == "table" and res.value[key] ~= nil then
+        return res.value[key]
+    end
+    return nil
+end
+
+local function cdp_eval_object_id(driver, expression)
+    local res = driver:execute_cdp("Runtime.evaluate", {
+        expression = expression,
+        returnByValue = false,
+    })
+    local result = cdp_field(res, "result") or res
+    return type(result) == "table" and result.objectId or nil
+end
+
+local function first_author_shadow(node)
+    if type(node) ~= "table" then
+        return nil
+    end
+    local roots = node.shadowRoots
+    if type(roots) == "table" then
+        for i = 1, #roots do
+            local kind = roots[i].shadowRootType
+            if kind ~= "user-agent" then
+                return roots[i]
+            end
+        end
+        return roots[1]
+    end
+    return nil
+end
+
+local function cdp_object_to_element(driver, object_id)
+    driver._pierce_n = (driver._pierce_n or 0) + 1
+    local key = "__luaSeleniumPierce" .. tostring(driver._pierce_n)
+    driver:execute_cdp("Runtime.callFunctionOn", {
+        objectId = object_id,
+        functionDeclaration = "function(k) { window[k] = this; }",
+        arguments = { { value = key } },
+    })
+    local quoted = json.encode(key)
+    local el = driver:execute_script("return window[" .. quoted .. "];")
+    pcall(function()
+        driver:execute_script("try { delete window[" .. quoted .. "]; } catch (e) {}")
+    end)
+    return el
+end
+
+function WebElement:_open_shadow_root()
     local ok, res = pcall(request, "GET", self.base_url .. "/shadow")
     if ok and type(res) == "table" then
         local id = res[SHADOW_KEY] or res[ELEMENT_KEY]
@@ -1348,7 +1424,108 @@ function WebElement:shadow_root()
             return WebElement.new(self.driver, id)
         end
     end
-    return self.driver:execute_script("return arguments[0].shadowRoot;", { self })
+    local via_js = self.driver:execute_script("return arguments[0].shadowRoot;", { self })
+    if type(via_js) == "table" and via_js.find_element then
+        return via_js
+    end
+    return nil
+end
+
+function WebElement:_pierce_shadow_root()
+    local driver = self.driver
+    driver._pierce_n = (driver._pierce_n or 0) + 1
+    local mark = "lua-selenium-" .. tostring(driver._pierce_n)
+    driver:execute_script(
+        "arguments[0].setAttribute('data-lua-selenium-cdp', arguments[1]);",
+        { self, mark }
+    )
+    local selector = css_attr_equals("data-lua-selenium-cdp", mark)
+    local ok, root_or_err = pcall(function()
+        pcall(function()
+            driver:execute_cdp("DOM.enable", {})
+        end)
+        local host_oid = cdp_eval_object_id(driver, "document.querySelector(" .. json.encode(selector) .. ")")
+        if not host_oid then
+            error("Could not resolve host element for shadow pierce")
+        end
+        local described = driver:execute_cdp("DOM.describeNode", {
+            objectId = host_oid,
+            depth = 1,
+            pierce = true,
+        })
+        local node = cdp_field(described, "node") or described
+        local shadow = first_author_shadow(node)
+        if not shadow then
+            error("no such shadow root")
+        end
+        local resolved
+        if shadow.backendNodeId then
+            resolved = driver:execute_cdp("DOM.resolveNode", { backendNodeId = shadow.backendNodeId })
+        else
+            resolved = driver:execute_cdp("DOM.resolveNode", { nodeId = shadow.nodeId })
+        end
+        local obj = cdp_field(resolved, "object") or resolved
+        local shadow_oid = type(obj) == "table" and obj.objectId or nil
+        if not shadow_oid then
+            error("Could not resolve closed shadow root via CDP")
+        end
+        return cdp_object_to_element(driver, shadow_oid)
+    end)
+    pcall(function()
+        driver:execute_script("arguments[0].removeAttribute('data-lua-selenium-cdp');", { self })
+    end)
+    if not ok then
+        error(tostring(root_or_err) .. " (closed shadow pierce needs Chrome/Edge CDP)")
+    end
+    if type(root_or_err) ~= "table" or not root_or_err.find_element then
+        error("Closed shadow pierce failed to wrap shadow root as a WebElement")
+    end
+    return root_or_err
+end
+
+-- Open roots via W3C GET /shadow. Closed roots need { pierce = true } (Chromium CDP).
+function WebElement:shadow_root(opts)
+    opts = type(opts) == "table" and opts or {}
+    local root = self:_open_shadow_root()
+    if root then
+        return root
+    end
+    if opts.pierce then
+        return self:_pierce_shadow_root()
+    end
+    error("no such shadow root")
+end
+
+function WebElement:pierce_shadow()
+    return self:shadow_root({ pierce = true })
+end
+
+function WebElement:find_in_shadow(using, value)
+    return self:shadow_root({ pierce = true }):find_element(using, value)
+end
+
+function WebElement:assigned_slot()
+    return self.driver:execute_script("return arguments[0].assignedSlot;", { self })
+end
+
+function WebElement:assigned_nodes(opts)
+    opts = opts or {}
+    local flatten = opts.flatten == true
+    local nodes = self.driver:execute_script(
+        "return arguments[0].assignedNodes({flatten: arguments[1]});",
+        { self, flatten }
+    )
+    return nodes or {}
+end
+
+function WebElement:assigned_elements(opts)
+    opts = opts or {}
+    local flatten = opts.flatten == true
+    local nodes = self.driver:execute_script(
+        "return arguments[0].assignedElements({flatten: arguments[1]});",
+        { self, flatten }
+    )
+    return nodes or {}
 end
 
 function WebElement:__eq(other)
@@ -1627,6 +1804,153 @@ function Page:component(root_name, spec)
     spec = spec or {}
     spec.root = root
     return Page.new(self.driver, spec)
+end
+
+local POM_COLLECT_JS = [[
+return (function() {
+  function luaName(raw) {
+    var s = String(raw || "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    if (!s) return null;
+    if (/^[0-9]/.test(s)) s = "el_" + s;
+    s = s.toLowerCase();
+    var reserved = {
+      url: true, root: true, locators: true, and: true, or: true, not: true,
+      end: true, local: true, function: true, return: true, if: true, then: true,
+      else: true, elseif: true, do: true, while: true, repeat: true, until: true,
+      for: true, in: true, nil: true, true: true, false: true, break: true
+    };
+    if (reserved[s]) s = s + "_el";
+    return s;
+  }
+  var items = [];
+  var seen = {};
+  function add(name, using, value, tag) {
+    if (!name || seen[name]) return;
+    seen[name] = true;
+    items.push({ name: name, using: using, value: value, tag: tag });
+  }
+  function cssAttr(attr, value) {
+    return "[" + attr + "=\"" + String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"") + "\"]";
+  }
+  function visit(root) {
+    if (!root || !root.querySelectorAll) return;
+    var nodes = root.querySelectorAll(
+      "a, button, input, select, textarea, form, [id], [name], [data-testid], [data-test], [aria-label]"
+    );
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var tag = (el.tagName || "").toLowerCase();
+      if (tag === "script" || tag === "style" || tag === "link" || tag === "meta" || tag === "noscript") continue;
+      var testid = el.getAttribute("data-testid") || el.getAttribute("data-test");
+      if (testid) {
+        var attr = el.getAttribute("data-testid") ? "data-testid" : "data-test";
+        add(luaName(testid), "css selector", cssAttr(attr, testid), tag);
+      } else if (el.id) {
+        add(luaName(el.id), "id", el.id, tag);
+      } else if (el.getAttribute("name")) {
+        add(luaName(el.getAttribute("name")), "name", el.getAttribute("name"), tag);
+      } else if (el.getAttribute("aria-label")) {
+        add(luaName(el.getAttribute("aria-label")), "css selector",
+          cssAttr("aria-label", el.getAttribute("aria-label")), tag);
+      }
+    }
+    var all = root.querySelectorAll("*");
+    for (var j = 0; j < all.length; j++) {
+      if (all[j].shadowRoot) visit(all[j].shadowRoot);
+    }
+  }
+  visit(document);
+  return items;
+})();
+]]
+
+local function locator_from_scan(item)
+    if item.using == "id" then
+        return By.id(item.value)
+    elseif item.using == "name" then
+        return By.name(item.value)
+    elseif item.using == "xpath" then
+        return By.xpath(item.value)
+    end
+    return By.css(item.value)
+end
+
+local function emit_locator_lua(item)
+    if item.using == "id" then
+        return string.format("By.id(%q)", item.value)
+    elseif item.using == "name" then
+        return string.format("By.name(%q)", item.value)
+    elseif item.using == "xpath" then
+        return string.format("By.xpath(%q)", item.value)
+    end
+    return string.format("By.css(%q)", item.value)
+end
+
+-- Scan the current page (or opts.url) and build a Page.extend class.
+-- Returns { name, source, locators, class }. Writes opts.out when set.
+function Page.generate(driver, opts)
+    opts = opts or {}
+    if opts.url then
+        driver:get(opts.url)
+    end
+    local items = driver:execute_script(POM_COLLECT_JS) or {}
+    local locators = {}
+    local names = {}
+    for _, item in ipairs(items) do
+        locators[item.name] = locator_from_scan(item)
+        table.insert(names, item.name)
+    end
+    table.sort(names)
+    local class_name = opts.name or "GeneratedPage"
+    if not class_name:match("^[%a_][%w_]*$") then
+        error("Page.generate name must be a Lua identifier, got: " .. tostring(class_name))
+    end
+    local url = opts.url or driver:get_current_url()
+    local lines = {
+        "-- Generated by WebDriver.Page.generate",
+        "local WebDriver = require(\"webdriver\")",
+        "local By = WebDriver.By",
+        "",
+        "local " .. class_name .. " = WebDriver.Page.extend({",
+        string.format("    url = %q,", url),
+        "    locators = {",
+    }
+    for _, name in ipairs(names) do
+        local item
+        for _, row in ipairs(items) do
+            if row.name == name then
+                item = row
+                break
+            end
+        end
+        table.insert(lines, string.format("        %s = %s,", name, emit_locator_lua(item)))
+    end
+    table.insert(lines, "    },")
+    table.insert(lines, "})")
+    table.insert(lines, "")
+    table.insert(lines, "return " .. class_name)
+    table.insert(lines, "")
+    local source = table.concat(lines, "\n")
+    if opts.out then
+        local file = assert(io.open(opts.out, "w"))
+        file:write(source)
+        file:close()
+    end
+    local class = Page.extend({
+        url = url,
+        locators = locators,
+    })
+    return {
+        name = class_name,
+        source = source,
+        locators = locators,
+        class = class,
+        items = items,
+    }
+end
+
+function WebDriver:generate_page(opts)
+    return Page.generate(self, opts)
 end
 
 function WebDriver:page(spec)

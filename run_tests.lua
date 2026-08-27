@@ -5,6 +5,7 @@ local tests = {
     "test_phase2.lua",
     "test_phase3.lua",
     "test_pom.lua",
+    "test_browsers.lua",
     "example.lua",
 }
 

@@ -60,8 +60,10 @@
 * **WebDriver BiDi**: Session capability `webSocketUrl: true` (`bidi = true`). Minimal WebSocket client plus JSON-RPC BiDi commands. `driver:bidi()` for `subscribe`, `on`, `navigate`, console logs, JS exceptions, and `mock_request` network interception.
 * **CDP**: `driver:execute_cdp(cmd, params)` via ChromeDriver `/goog/cdp/execute`.
 * **Test runners**: `webdriver_test` assertions (`equal`, `contains`, `matches`), `with_driver`, and `with_local_session` (HTTP fixture + session). Busted example in `spec/webdriver_spec.lua`.
-* **Page Object Model**: `driver:page({ locators })` and `Page.extend({ locators })` with `el` / `els` / `type` / `click` / `component` for nested regions.
-* **Packaging**: unversioned `luaselenium-scm-1.rockspec` (`luarocks make`). No release version until the API is stable.
+* **Page Object Model**: `driver:page({ locators })` and `Page.extend({ locators })` with `el` / `els` / `type` / `click` / `component` for nested regions. `Page.generate(driver, { name, url, out })` / `driver:generate_page` scans the current page for stable locators and writes a `Page.extend` module.
+* **Shadow DOM**: open roots via `element:shadow_root()`. Closed roots via `shadow_root({ pierce = true })` / `pierce_shadow()` / `find_in_shadow` (Chromium CDP). Slot helpers: `assigned_slot`, `assigned_nodes`, `assigned_elements`.
+* **Live browsers**: `run_tests.lua` includes `test_browsers.lua` — Firefox when `geckodriver` + `firefox` are on PATH; Safari when `safaridriver` is on PATH (macOS). `WebDriver.has_driver(name)` reports availability.
+* **Packaging**: unversioned `luaselenium-scm-1.rockspec` (`luarocks make`). No release version until the API is stable. LuaRocks upload is deferred.
 
 ---
 
@@ -69,10 +71,9 @@
 
 Still open; no release version until these are settled or explicitly deferred.
 
-* **LuaRocks publish**: `luarocks upload` of a numbered rock (blocked on API stability + account). SCM rockspec only for now.
-* **Firefox/Safari live sessions**: capability builders exist; only Chrome is exercised in `run_tests.lua`.
-* **Closed shadow internals**: we assert closed roots are not inspectable; no pierce/slot API.
-* **POM scaffolding**: no page-object generator; `Page.extend({ url })` is manual.
+* **LuaRocks publish**: deferred (no upload until explicitly requested). SCM rockspec only.
+* **Safari on Linux**: `safaridriver` is macOS-only; `test_browsers.lua` skips there. No extra WebKit driver.
+* **Closed-shadow pierce on Firefox/Safari**: Chromium CDP only; Gecko/WebKit do not expose closed trees to WebDriver.
 
 ```text
 +-------------------------------------------------------------------------------+
@@ -121,4 +122,8 @@ What landed each pass, and what was left afterward.
 
 ### Iteration 8 — daily-driver API, docs, logs
 **Done:** README + MIT LICENSE + `example.lua` (offline data-URL smoke). Second-based `implicitly_wait` / `set_page_load_timeout` / `set_script_timeout` (W3C `set_timeouts` stays milliseconds). `get_window_size` / `get_window_position` / `set_window_position`. `WebElement:location`, `:size`, `:submit`. `localStorage` get/set/clear. `get_log` via `/se/log`, `/log`, or BiDi console buffer. `goog:loggingPrefs` when `logging` / `browser_log` is set. Closed shadow roots asserted unreadable. `Page.extend` + `open(url)` covered in tests. Fixed W3C JSON unwrap so `false` / `null` are not replaced by the whole response envelope.
-**Yet to do:** Items in Part 2 (LuaRocks upload, Firefox/Safari live runs, closed-shadow pierce, POM generator).
+**Yet to do:** Items in Part 2 (LuaRocks upload deferred, Firefox/Safari live runs, closed-shadow pierce, POM generator).
+
+### Iteration 9 — Firefox live, shadow pierce, POM generator
+**Done:** Live Firefox session in `test_browsers.lua` (spawn geckodriver, fixture smoke). Safari runs the same smoke when `safaridriver` exists and is skipped on Linux. `WebDriver.has_driver` / `command_exists`. Closed shadow pierce via Chromium CDP (`shadow_root({ pierce = true })`, `pierce_shadow`, `find_in_shadow`) plus `assigned_slot` / `assigned_nodes` / `assigned_elements`. `Page.generate` / `driver:generate_page` writes a `Page.extend` module from ids/names/testids. LuaRocks upload left deferred.
+**Yet to do:** Items in Part 2 (LuaRocks deferred; Safari needs macOS; closed pierce is Chromium-only).

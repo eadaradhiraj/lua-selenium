@@ -8,7 +8,7 @@ This tree is **unreleased** (`luaselenium-scm-1.rockspec`). APIs can still chang
 
 - Lua 5.3+ (developed on 5.5)
 - LuaRocks modules: `luasocket`, `lunajson`, `luasec`
-- `chromedriver` on `PATH` (Chromium on Arch ships it)
+- `chromedriver` on `PATH` (Chromium on Arch ships it). Firefox live tests also need `firefox` + `geckodriver`.
 
 ```bash
 sudo pacman -S lua luarocks chromium
@@ -46,6 +46,15 @@ WebDriver.new({
 ```
 
 Timeouts: `wait_until` and `implicitly_wait` / `set_page_load_timeout` / `set_script_timeout` use **seconds**. `set_timeouts({ implicit = 2000 })` is raw W3C **milliseconds**.
+
+Closed shadow trees (Chrome/Edge): `host:shadow_root({ pierce = true })` or `host:find_in_shadow(By.id("inside"))`. Open roots work with `host:shadow_root()` on all browsers.
+
+Generate a page object from the current DOM:
+
+```lua
+local gen = driver:generate_page({ name = "LoginPage", out = "pages/login_page.lua" })
+local LoginPage = require("pages.login_page")  -- or loadfile the path
+```
 
 ## Tests
 

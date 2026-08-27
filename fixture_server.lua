@@ -37,6 +37,7 @@ local html = [[<!DOCTYPE html>
   </form>
   <div id="shadow-host"></div>
   <div id="closed-host"></div>
+  <div id="slot-host"></div>
   <form id="submit-form" action="#" onsubmit="window.__submitted=true; return false;">
     <input id="submit-field" name="q" />
     <button id="submit-btn" type="submit">go</button>
@@ -67,7 +68,20 @@ local html = [[<!DOCTYPE html>
         host.dataset.clicked = '1';
       });
     })();
-    document.getElementById('closed-host').attachShadow({ mode: 'closed' });
+    (function() {
+      var closed = document.getElementById('closed-host');
+      var closedRoot = closed.attachShadow({ mode: 'closed' });
+      closedRoot.innerHTML = '<p id="closed-text">inside closed</p><button id="closed-btn">press closed</button>';
+      closedRoot.getElementById('closed-btn').addEventListener('click', function() {
+        closed.dataset.clicked = '1';
+      });
+    })();
+    (function() {
+      var host = document.getElementById('slot-host');
+      host.innerHTML = '<span slot="title" id="slotted-title">hello slot</span>';
+      var root = host.attachShadow({ mode: 'open' });
+      root.innerHTML = '<slot id="title-slot" name="title">fallback</slot>';
+    })();
     document.getElementById('hover-target').addEventListener('mouseover', function() {
       this.dataset.hovered = '1';
     });

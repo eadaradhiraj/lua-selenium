@@ -65,15 +65,45 @@ local ok, err = xpcall(function()
         check_eq("shadow click reaches host", host:get_attribute("data-clicked"), "1")
 
         local closed = driver:find_element(By.id("closed-host"))
-        local closed_ok = pcall(function()
-            return closed:shadow_root():find_element(By.css("p"))
+        local light_ok = pcall(function()
+            return driver:find_element(By.id("closed-text"))
         end)
-        check("closed shadow is not inspectable", not closed_ok)
+        check("closed internals not in light DOM", not light_ok)
+
+        local pierced = closed:shadow_root({ pierce = true })
+        check("pierced closed shadow root", pierced ~= nil and pierced.find_element ~= nil)
+        check_eq("text inside closed shadow", pierced:find_element(By.id("closed-text")):get_text(), "inside closed")
+        closed:find_in_shadow(By.id("closed-btn")):click()
+        check_eq("closed shadow click reaches host", closed:get_attribute("data-clicked"), "1")
+
+        print("\n[Shadow slots]")
+        local slotted = driver:find_element(By.id("slotted-title"))
+        local slot = slotted:assigned_slot()
+        check("assigned_slot returned", slot ~= nil and slot.find_element ~= nil)
+        check_eq("assigned slot id", slot:get_attribute("id") or slot:get_property("id"), "title-slot")
+        local assigned = slot:assigned_elements()
+        check("assigned_elements", type(assigned) == "table" and #assigned >= 1)
+        check_eq("assigned node text", assigned[1]:get_text(), "hello slot")
 
         local Home = WebDriver.Page.extend({
             locators = { title = By.id("title") }
         })
         check_eq("Page.extend open(url)", Home.new(driver, { url = url }):open():text("title"), "Fixture Home")
+
+        print("\n[POM generator]")
+        local gen_path = "/tmp/lua-selenium-generated-page.lua"
+        local gen = driver:generate_page({ name = "FixturePage", out = gen_path })
+        check("generated locators include user", gen.locators.user ~= nil)
+        check("generated locators include login_btn", gen.locators.login_btn ~= nil)
+        check("generated source is Lua", gen.source:find("WebDriver.Page.extend", 1, true) ~= nil)
+        local Generated = assert(loadfile(gen_path))()
+        local generated = Generated.new(driver)
+        check_eq("generated page title", generated:text("title"), "Fixture Home")
+        generated:type("user", "lua")
+        generated:type("pass", "rocks")
+        generated:click("login_btn")
+        check_eq("generated page login", generated:wait_el("login_status", 3):get_text(), "welcome")
+        os.remove(gen_path)
 
         print("\n[File upload]")
         local path = "/tmp/lua-selenium-upload.txt"

@@ -26,10 +26,16 @@
 * **DOM Traversal**: Single element (`find_element`) and list of elements (`find_elements`) via CSS selectors, XPath, etc.
 * **Interactive Operations**:
   * `WebElement:click()`
-  * `WebElement:send_keys()` with full string-to-character array decomposition for universal driver compatibility.
+  * `WebElement:send_keys()` with UTF-8 codepoint decomposition for universal driver compatibility.
   * `WebElement:clear()`
   * `WebElement:get_text()`
-  * `WebElement:get_attribute(name)`
+  * `WebElement:get_attribute(name)` / `get_property(name)` / `get_css_value(name)` / `get_tag_name()` / `get_rect()`
+  * `is_displayed()` / `is_enabled()` / `is_selected()`
+  * Element screenshots and `shadow_root()`
+* **Navigation**: `back()`, `forward()`, `refresh()`, `get_page_source()`, `get_active_element()`.
+* **Script bridge**: `execute_script` / `execute_async_script` marshal `WebElement` arguments and wrap element results.
+* **Waits**: `wait_until` plus `WebDriver.EC` (`title_is`, `presence_of_element`, `visibility_of_element`, `element_to_be_clickable`, `alert_is_present`, …).
+* **`<select>` helper**: `driver:select(element)` with `select_by_visible_text` / `select_by_value` / `select_by_index`.
 
 ### 5. Advanced Utilities
 * **JavaScript Evaluation**: `driver:execute_script(script, args)` to run arbitrary synchronous JS and return values back to Lua.
@@ -53,22 +59,60 @@
 ### 8. Modern Tooling & Ecosystem (Phase 3)
 * **WebDriver BiDi**: Session capability `webSocketUrl: true` (`bidi = true`). Minimal WebSocket client plus JSON-RPC BiDi commands. `driver:bidi()` for `subscribe`, `on`, `navigate`, console logs, JS exceptions, and `mock_request` network interception.
 * **CDP**: `driver:execute_cdp(cmd, params)` via ChromeDriver `/goog/cdp/execute`.
-* **Test runners**: `webdriver_test` assertions (`equal`, `contains`, `matches`) and `with_driver` fixture. Busted example in `spec/webdriver_spec.lua`.
-* **Packaging**: `luaselenium-0.1.0-1.rockspec` for LuaRocks (`luarocks make`).
+* **Test runners**: `webdriver_test` assertions (`equal`, `contains`, `matches`), `with_driver`, and `with_local_session` (HTTP fixture + session). Busted example in `spec/webdriver_spec.lua`.
+* **Page Object Model**: `driver:page({ locators })` and `Page.extend({ locators })` with `el` / `els` / `type` / `click` / `component` for nested regions.
+* **Packaging**: unversioned `luaselenium-scm-1.rockspec` (`luarocks make`). No release version until the API is stable.
 
 ---
 
-## Part 2: Future Roadmap & Next Steps
+## Part 2: Yet to be done
 
-The stack below is implemented except Page Object helpers and publishing the rock to LuaRocks.org (`luarocks upload`).
+Still open; no release version until these are settled or explicitly deferred.
+
+* **LuaRocks publish**: `luarocks upload` of a numbered rock (blocked on API stability + account). SCM rockspec only for now.
+* **`switch_to` facade**: Selenium-style `driver:switch_to().frame / window / alert / default_content` sugar on top of the existing methods.
+* **Wait robustness**: `wait_until` currently swallows condition errors; surface the last error on timeout. Add `EC.staleness_of`, `EC.invisibility_of_element`, `EC.url_is`.
+* **Test DRY**: `test_phase1.lua` / `test_phase2.lua` / `test_phase3.lua` still start the fixture server by hand instead of `with_local_session`.
+* **Network-optional smoke tests**: `test.lua` / `test_advanced.lua` hit Wikipedia; skip cleanly when offline.
+* **Classic log endpoint**: `GET /session/{id}/log` / Chrome log types as a fallback when BiDi is off.
+* **Print-to-PDF**: `POST /session/{id}/print`.
+* **Closed shadow roots / slotted content**: only open shadow roots are tested.
+* **Page Object extras**: load URL from `Page.extend({ url })` in more examples; no generator/scaffolding.
+* **README**: usage still lives in this spec and the `test_*.lua` files only.
 
 ```text
 +-------------------------------------------------------------------------------+
 |                               Lua-Selenium Stack                              |
 +-------------------------------------------------------------------------------+
-| High-Level:   Test helpers (webdriver_test / Busted fixture)                  |
+| High-Level:   Page objects | Test helpers (webdriver_test / Busted fixture)   |
 | Mid-Level:    Fluent locators (`By`)  |  Actions API  |  Wait conditions      |
 | Transport:    W3C REST (HTTP)         |  WebDriver BiDi / CDP (WebSocket)     |
 | Engine:       Chromedriver / GeckoDriver / Selenium Grid / Cloud providers    |
 +-------------------------------------------------------------------------------+
 ```
+
+---
+
+## Part 3: Iteration log
+
+What landed each pass, and what was left afterward.
+
+### Iteration 1 — Phase 1 core API
+**Done:** `By` locators, nested `find_element`, windows/tabs, frames, alerts, cookies, timeouts. `test_phase1.lua` (36 checks).
+**Yet to do:** Actions, auto-spawn, multi-browser, BiDi, packaging.
+
+### Iteration 2 — Phase 2 automation
+**Done:** W3C Actions (hover, drag-and-drop, double/right click, modifier keys), managed chromedriver/geckodriver spawn + teardown, Chrome/Firefox/Safari/Edge capability builders, BrowserStack/Sauce/Grid URL + HTTPS.
+**Yet to do:** BiDi/CDP, test-runner helpers, rockspec.
+
+### Iteration 3 — Phase 3 tooling
+**Done:** WebSocket client, BiDi console/exceptions/network mock, `execute_cdp`, `webdriver_test` assertions + `with_driver`, busted example spec, `luaselenium-0.1.0-1.rockspec`.
+**Yet to do:** Unversion until stable; W3C holes (nav, element state, script wrap); Page Objects.
+
+### Iteration 4 — Harden, don't version
+**Done:** Replaced numbered rockspec with `luaselenium-scm-1.rockspec`. `json_array` no longer mutates caller tables. HTTP failures and W3C error codes (`[no such element]`). ChromeDriver `--allowed-origins=* --allowed-ips=`. `back`/`forward`/`refresh`/`get_page_source`/`get_active_element`. `execute_async_script`. Element `get_property`/`get_css_value`/`get_tag_name`/`get_rect`/`is_displayed`/`is_enabled`/`is_selected`/screenshots/`shadow_root`. Script argument/result `WebElement` round-trip. `WebDriver.EC` wait conditions. `driver:select()` for `<select>`. `test_api.lua` (28 checks). `test.lua` uses auto-spawn + EC.
+**Yet to do:** Page Objects, shadow DOM coverage, file upload, shared fixture helper.
+
+### Iteration 5 — Page objects, shadow DOM, uploads
+**Done:** `WebDriver.Page` / `Page.extend` (`el`, `els`, `type`, `click`, `component`, `wait_el`). Open shadow root find + click. File `<input>` via `send_keys(path)`. `with_local_session` + `start_fixture`. `test_pom.lua` (9 checks). `run_tests.lua` local suite (108 checks).
+**Yet to do:** Items in Part 2 (LuaRocks upload, `switch_to` sugar, wait-error surfacing, test DRY, offline Wikipedia tests, print/PDF, closed shadow, README).

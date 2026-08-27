@@ -111,6 +111,69 @@ function M.install_busted(busted_assert, opts)
     return helpers
 end
 
+function M.start_fixture(port)
+    port = port or 8765
+    local socket = require("socket")
+    local pidfile = "/tmp/lua-selenium-fixture-" .. tostring(port) .. ".pid"
+    os.execute(string.format(
+        "lua fixture_server.lua %d >/tmp/lua-selenium-fixture-%d.log 2>&1 & echo $! > %s",
+        port, port, pidfile
+    ))
+    local start = socket.gettime()
+    while socket.gettime() - start < 3 do
+        local tcp = socket.tcp()
+        tcp:settimeout(0.15)
+        local ok = tcp:connect("127.0.0.1", port)
+        tcp:close()
+        if ok then
+            local url = "http://127.0.0.1:" .. tostring(port) .. "/"
+            local function stop()
+                local f = io.open(pidfile, "r")
+                if f then
+                    local pid = f:read("*l")
+                    f:close()
+                    if pid and #pid > 0 then
+                        os.execute("kill " .. pid .. " >/dev/null 2>&1")
+                    end
+                end
+            end
+            return url, stop
+        end
+        socket.sleep(0.05)
+    end
+    error("fixture server did not start on port " .. tostring(port))
+end
+
+-- driver + local HTML fixture; always stops both.
+function M.with_local_session(opts, fn)
+    if type(opts) == "function" then
+        fn = opts
+        opts = nil
+    end
+    opts = opts or {}
+    local fixture_port = opts.fixture_port or 8770
+    local driver_opts = {}
+    for k, v in pairs(opts) do
+        if k ~= "fixture_port" then
+            driver_opts[k] = v
+        end
+    end
+    if driver_opts.headless == nil then driver_opts.headless = true end
+    if driver_opts.spawn == nil then driver_opts.spawn = true end
+
+    local url, stop = M.start_fixture(fixture_port)
+    local ok, result = xpcall(function()
+        return M.with_driver(driver_opts, function(driver)
+            return fn(driver, url)
+        end)
+    end, debug.traceback)
+    pcall(stop)
+    if not ok then
+        error(result, 0)
+    end
+    return result
+end
+
 M.assert_equal = M.equal
 M.assert_true = M.is_true
 M.assert_false = M.is_false

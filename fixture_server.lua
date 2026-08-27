@@ -18,7 +18,24 @@ local html = [[<!DOCTYPE html>
   <a id="wiki-link" href="#section">Lua Language</a>
   <form>
     <input id="searchInput" name="q" type="text" value="" />
+    <input id="name-field" name="fullname" type="text" value="initial" />
+    <input id="chk" type="checkbox" checked />
+    <button id="disabled-btn" disabled>nope</button>
+    <select id="color">
+      <option value="r">Red</option>
+      <option value="g" selected>Green</option>
+      <option value="b">Blue</option>
+    </select>
   </form>
+  <div id="hidden-box" style="display:none">secret</div>
+  <input id="file-input" type="file" />
+  <form id="login-form">
+    <input id="user" />
+    <input id="pass" type="password" />
+    <button id="login-btn" type="button">Log in</button>
+    <p id="login-status"></p>
+  </form>
+  <div id="shadow-host"></div>
   <iframe id="frame1" srcdoc="<!DOCTYPE html><html><body><p id='inside'>in frame</p></body></html>"></iframe>
   <button id="alert-btn" onclick="alert('hello-alert')">Alert</button>
   <button id="confirm-btn" onclick="confirm('sure?')">Confirm</button>
@@ -31,6 +48,20 @@ local html = [[<!DOCTYPE html>
   <div id="dst" style="position:absolute;left:220px;top:420px;width:96px;height:96px;background:#00c;color:#fff;">dst</div>
   <script>
     window.__api = null;
+    document.getElementById('login-btn').addEventListener('click', function() {
+      var u = document.getElementById('user').value;
+      var p = document.getElementById('pass').value;
+      document.getElementById('login-status').textContent =
+        (u === 'lua' && p === 'rocks') ? 'welcome' : 'denied';
+    });
+    (function() {
+      var host = document.getElementById('shadow-host');
+      var root = host.attachShadow({ mode: 'open' });
+      root.innerHTML = '<p id="shadow-text">inside shadow</p><button id="shadow-btn">press</button>';
+      root.getElementById('shadow-btn').addEventListener('click', function() {
+        host.dataset.clicked = '1';
+      });
+    })();
     document.getElementById('hover-target').addEventListener('mouseover', function() {
       this.dataset.hovered = '1';
     });

@@ -21,7 +21,10 @@ Actions.__index = Actions
 
 local By = {}
 
+local wrap_js_value, unwrap_js_args
+
 local ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
+local SHADOW_KEY = "shadow-6066-11e4-a52e-4f735466cecf"
 
 local DEFAULT_PORTS = {
     chrome = 9515,
@@ -111,13 +114,18 @@ local Keys = {
     COMMAND = "\u{E03D}",
 }
 
--- Helper to ensure empty tables serialize as JSON arrays [] in lunajson
+-- Copy into a new list so we never mutate the caller's table.
 local function json_array(tbl)
-    tbl = tbl or {}
-    if #tbl == 0 then
-        tbl[0] = 0
+    local out = {}
+    if type(tbl) == "table" then
+        for i, v in ipairs(tbl) do
+            out[i] = v
+        end
     end
-    return tbl
+    if #out == 0 then
+        out[0] = 0
+    end
+    return out
 end
 
 local function css_attr_equals(attr, value)
@@ -276,12 +284,18 @@ local function request(method, url, body_table)
         if ok then decoded = res end
     end
 
-    if status and status >= 400 then
-        local err_msg = "WebDriver Error (" .. tostring(status) .. ")"
-        if decoded and decoded.value and decoded.value.message then
-            err_msg = err_msg .. ": " .. decoded.value.message
+    if not status then
+        error("WebDriver HTTP request failed (no response) for " .. method .. " " .. url)
+    end
+
+    if status >= 400 then
+        local value = decoded and decoded.value
+        local err_code = value and value.error
+        local err_msg = value and value.message
+        if err_code and err_msg then
+            error("WebDriver Error [" .. tostring(err_code) .. "]: " .. err_msg)
         end
-        error(err_msg)
+        error("WebDriver Error (" .. tostring(status) .. ")" .. (err_msg and (": " .. err_msg) or ""))
     end
 
     return decoded and decoded.value or decoded
@@ -289,6 +303,55 @@ end
 
 local function element_ref(element)
     return { [ELEMENT_KEY] = element.id }
+end
+
+unwrap_js_args = function(args)
+    if type(args) ~= "table" then
+        return json_array({})
+    end
+    local out = {}
+    for i, v in ipairs(args) do
+        if type(v) == "table" and getmetatable(v) == WebElement then
+            out[i] = element_ref(v)
+        else
+            out[i] = v
+        end
+    end
+    return json_array(out)
+end
+
+wrap_js_value = function(driver, value)
+    if type(value) ~= "table" then
+        return value
+    end
+    if value[ELEMENT_KEY] then
+        return WebElement.new(driver, value[ELEMENT_KEY])
+    end
+    if value[SHADOW_KEY] then
+        return WebElement.new(driver, value[SHADOW_KEY])
+    end
+    local maxn, count = 0, 0
+    local is_list = true
+    for k, _ in pairs(value) do
+        if type(k) ~= "number" or k < 1 or k % 1 ~= 0 then
+            is_list = false
+            break
+        end
+        count = count + 1
+        if k > maxn then maxn = k end
+    end
+    if is_list and count == maxn then
+        local out = {}
+        for i = 1, maxn do
+            out[i] = wrap_js_value(driver, value[i])
+        end
+        return out
+    end
+    local out = {}
+    for k, v in pairs(value) do
+        out[k] = wrap_js_value(driver, v)
+    end
+    return out
 end
 
 -----------------------------------------------------------
@@ -490,7 +553,7 @@ local function driver_command(browser, port, driver_path)
     elseif browser == "safari" then
         return string.format("%s -p %d", shell_quote(bin), port)
     else
-        return string.format("%s --port=%d --whitelisted-ips=", shell_quote(bin), port)
+        return string.format("%s --port=%d --allowed-origins=* --allowed-ips=", shell_quote(bin), port)
     end
 end
 
@@ -620,6 +683,22 @@ function WebDriver:get_current_url()
     return request("GET", self.base_url .. "/url")
 end
 
+function WebDriver:get_page_source()
+    return request("GET", self.base_url .. "/source")
+end
+
+function WebDriver:back()
+    return request("POST", self.base_url .. "/back", {})
+end
+
+function WebDriver:forward()
+    return request("POST", self.base_url .. "/forward", {})
+end
+
+function WebDriver:refresh()
+    return request("POST", self.base_url .. "/refresh", {})
+end
+
 function WebDriver:bidi()
     if self._bidi then
         return self._bidi
@@ -673,10 +752,24 @@ function WebDriver:find_elements(using, value)
 end
 
 function WebDriver:execute_script(script, args)
-    return request("POST", self.base_url .. "/execute/sync", {
+    local res = request("POST", self.base_url .. "/execute/sync", {
         script = script,
-        args = json_array(args)
+        args = unwrap_js_args(args)
     })
+    return wrap_js_value(self, res)
+end
+
+function WebDriver:execute_async_script(script, args)
+    local res = request("POST", self.base_url .. "/execute/async", {
+        script = script,
+        args = unwrap_js_args(args)
+    })
+    return wrap_js_value(self, res)
+end
+
+function WebDriver:get_active_element()
+    local res = request("GET", self.base_url .. "/element/active")
+    return WebElement.new(self, res[ELEMENT_KEY])
 end
 
 function WebDriver:wait_until(condition_func, timeout_sec, interval_sec)
@@ -1055,7 +1148,69 @@ function WebElement:get_text()
 end
 
 function WebElement:get_attribute(name)
-    return request("GET", self.base_url .. "/attribute/" .. name)
+    return request("GET", self.base_url .. "/attribute/" .. url_encode(name))
+end
+
+function WebElement:get_property(name)
+    return request("GET", self.base_url .. "/property/" .. url_encode(name))
+end
+
+function WebElement:get_css_value(name)
+    return request("GET", self.base_url .. "/css/" .. url_encode(name))
+end
+
+function WebElement:get_tag_name()
+    return request("GET", self.base_url .. "/name")
+end
+
+function WebElement:get_rect()
+    return request("GET", self.base_url .. "/rect")
+end
+
+function WebElement:is_enabled()
+    return request("GET", self.base_url .. "/enabled") == true
+end
+
+function WebElement:is_selected()
+    return request("GET", self.base_url .. "/selected") == true
+end
+
+function WebElement:is_displayed()
+    local ok, res = pcall(request, "GET", self.base_url .. "/displayed")
+    if ok then
+        return res == true
+    end
+    return self.driver:execute_script(
+        "var e = arguments[0]; return !!(e && (e.offsetWidth || e.offsetHeight || e.getClientRects().length));",
+        { self }
+    ) == true
+end
+
+function WebElement:screenshot()
+    return request("GET", self.base_url .. "/screenshot")
+end
+
+function WebElement:save_screenshot(filename)
+    local binary_data = mime.unb64(self:screenshot())
+    local file = assert(io.open(filename, "wb"))
+    file:write(binary_data)
+    file:close()
+    return true
+end
+
+function WebElement:shadow_root()
+    local ok, res = pcall(request, "GET", self.base_url .. "/shadow")
+    if ok and type(res) == "table" then
+        local id = res[SHADOW_KEY] or res[ELEMENT_KEY]
+        if id then
+            return WebElement.new(self.driver, id)
+        end
+    end
+    return self.driver:execute_script("return arguments[0].shadowRoot;", { self })
+end
+
+function WebElement:__eq(other)
+    return type(other) == "table" and self.id == other.id
 end
 
 function WebElement:hover()
@@ -1070,12 +1225,251 @@ function WebElement:context_click()
     return Actions.new(self.driver):context_click(self):perform()
 end
 
+-----------------------------------------------------------
+-- Expected conditions (for driver:wait_until)
+-----------------------------------------------------------
+local EC = {}
+
+function EC.title_is(title)
+    return function(d)
+        local actual = d:get_title()
+        return actual == title and actual
+    end
+end
+
+function EC.title_contains(part)
+    return function(d)
+        local actual = d:get_title()
+        return actual and actual:find(part, 1, true) and actual
+    end
+end
+
+function EC.url_contains(part)
+    return function(d)
+        local actual = d:get_current_url()
+        return actual and actual:find(part, 1, true) and actual
+    end
+end
+
+function EC.presence_of_element(using, value)
+    return function(d)
+        local ok, el = pcall(function()
+            return d:find_element(using, value)
+        end)
+        return ok and el
+    end
+end
+
+function EC.visibility_of_element(using, value)
+    return function(d)
+        local el = EC.presence_of_element(using, value)(d)
+        if not el then return nil end
+        local ok, shown = pcall(function()
+            return el:is_displayed()
+        end)
+        return ok and shown and el
+    end
+end
+
+function EC.element_to_be_clickable(using, value)
+    return function(d)
+        local el = EC.visibility_of_element(using, value)(d)
+        if not el then return nil end
+        return el:is_enabled() and el
+    end
+end
+
+function EC.alert_is_present()
+    return function(d)
+        local alert = d:alert()
+        local ok = pcall(function()
+            return alert:get_text()
+        end)
+        return ok and alert
+    end
+end
+
+-----------------------------------------------------------
+-- <select> helper
+-----------------------------------------------------------
+local Select = {}
+Select.__index = Select
+
+function Select.new(element)
+    return setmetatable({ element = element }, Select)
+end
+
+function Select:options()
+    return self.element:find_elements(By.tag_name("option"))
+end
+
+function Select:select_by_visible_text(text)
+    for _, opt in ipairs(self:options()) do
+        if opt:get_text() == text then
+            opt:click()
+            return opt
+        end
+    end
+    error("No <option> with visible text: " .. tostring(text))
+end
+
+function Select:select_by_value(value)
+    local opt = self.element:find_element(By.css("option" .. css_attr_equals("value", value)))
+    opt:click()
+    return opt
+end
+
+function Select:select_by_index(index)
+    local options = self:options()
+    local opt = options[index + 1]
+    if not opt then
+        error("No <option> at index " .. tostring(index))
+    end
+    opt:click()
+    return opt
+end
+
+function Select:first_selected_option()
+    for _, opt in ipairs(self:options()) do
+        if opt:is_selected() then
+            return opt
+        end
+    end
+end
+
+function WebDriver:select(element)
+    return Select.new(element)
+end
+
+-----------------------------------------------------------
+-- Page Object / component helper
+-----------------------------------------------------------
+local Page = {}
+Page.__index = Page
+
+function Page.new(driver, spec)
+    spec = spec or {}
+    local locators = spec.locators
+    local url, root
+    if locators then
+        url = spec.url
+        root = spec.root
+    else
+        locators = {}
+        for k, v in pairs(spec) do
+            if k == "url" then
+                url = v
+            elseif k == "root" then
+                root = v
+            else
+                locators[k] = v
+            end
+        end
+    end
+    return setmetatable({
+        driver = driver,
+        url = url,
+        locators = locators,
+        root = root,
+    }, Page)
+end
+
+function Page.extend(spec)
+    spec = spec or {}
+    local cls = {
+        url = spec.url,
+        locators = spec.locators or {},
+    }
+    cls.__index = cls
+    setmetatable(cls, { __index = Page })
+    function cls.new(driver, opts)
+        opts = opts or {}
+        local page = Page.new(driver, {
+            url = opts.url or cls.url,
+            locators = opts.locators or cls.locators,
+            root = opts.root,
+        })
+        return setmetatable(page, cls)
+    end
+    return cls
+end
+
+function Page:context()
+    return self.root or self.driver
+end
+
+function Page:open(url)
+    self.driver:get(url or self.url or error("Page has no URL"))
+    return self
+end
+
+function Page:el(name, value)
+    local loc = self.locators[name]
+    if loc then
+        return self:context():find_element(loc)
+    end
+    return self:context():find_element(name, value)
+end
+
+function Page:els(name, value)
+    local loc = self.locators[name]
+    if loc then
+        return self:context():find_elements(loc)
+    end
+    return self:context():find_elements(name, value)
+end
+
+function Page:wait_el(name, timeout_sec)
+    return self.driver:wait_until(function()
+        local ok, el = pcall(function()
+            return self:el(name)
+        end)
+        return ok and el
+    end, timeout_sec)
+end
+
+function Page:text(name)
+    return self:el(name):get_text()
+end
+
+function Page:click(name)
+    self:el(name):click()
+    return self
+end
+
+function Page:type(name, text)
+    local el = self:el(name)
+    pcall(function() el:clear() end)
+    el:send_keys(text)
+    return self
+end
+
+function Page:component(root_name, spec)
+    local root
+    if type(root_name) == "table" and root_name.id and root_name.find_element then
+        root = root_name
+    else
+        root = self:el(root_name)
+    end
+    spec = spec or {}
+    spec.root = root
+    return Page.new(self.driver, spec)
+end
+
+function WebDriver:page(spec)
+    return Page.new(self, spec)
+end
+
 WebDriver.By = By
 WebDriver.Keys = Keys
 WebDriver.WebElement = WebElement
 WebDriver.Alert = Alert
 WebDriver.Actions = Actions
+WebDriver.Select = Select
+WebDriver.Page = Page
+WebDriver.EC = EC
 WebDriver.ELEMENT_KEY = ELEMENT_KEY
+WebDriver.SHADOW_KEY = SHADOW_KEY
 WebDriver.test = setmetatable({}, {
     __index = function(_, key)
         return require("webdriver_test")[key]

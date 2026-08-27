@@ -36,6 +36,11 @@ local html = [[<!DOCTYPE html>
     <p id="login-status"></p>
   </form>
   <div id="shadow-host"></div>
+  <div id="closed-host"></div>
+  <form id="submit-form" action="#" onsubmit="window.__submitted=true; return false;">
+    <input id="submit-field" name="q" />
+    <button id="submit-btn" type="submit">go</button>
+  </form>
   <iframe id="frame1" srcdoc="<!DOCTYPE html><html><body><p id='inside'>in frame</p></body></html>"></iframe>
   <button id="alert-btn" onclick="alert('hello-alert')">Alert</button>
   <button id="confirm-btn" onclick="confirm('sure?')">Confirm</button>
@@ -62,6 +67,7 @@ local html = [[<!DOCTYPE html>
         host.dataset.clicked = '1';
       });
     })();
+    document.getElementById('closed-host').attachShadow({ mode: 'closed' });
     document.getElementById('hover-target').addEventListener('mouseover', function() {
       this.dataset.hovered = '1';
     });

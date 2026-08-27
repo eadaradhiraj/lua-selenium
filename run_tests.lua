@@ -5,6 +5,7 @@ local tests = {
     "test_phase2.lua",
     "test_phase3.lua",
     "test_pom.lua",
+    "example.lua",
 }
 
 for _, name in ipairs(tests) do

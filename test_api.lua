@@ -59,6 +59,27 @@ local ok, err = xpcall(function()
         driver:refresh()
         check_eq("title after refresh", driver:get_title(), "Lua Selenium Fixture")
 
+        print("\n[Seconds timeouts / window / storage]")
+        driver:implicitly_wait(1)
+        driver:set_page_load_timeout(20)
+        driver:set_script_timeout(8)
+        local t = driver:get_timeouts()
+        check_eq("implicitly_wait seconds->ms", t.implicit, 1000)
+        check_eq("page load seconds->ms", t.pageLoad, 20000)
+        check_eq("script seconds->ms", t.script, 8000)
+        driver:implicitly_wait(0)
+
+        local sized = driver:set_window_size(900, 700)
+        local wsz = driver:get_window_size()
+        check_eq("get_window_size width", wsz.width, sized.width)
+        local pos = driver:get_window_position()
+        check("get_window_position", type(pos.x) == "number")
+
+        driver:set_local_storage("k", "v")
+        check_eq("localStorage get", driver:get_local_storage("k"), "v")
+        driver:clear_local_storage()
+        check_eq("localStorage cleared", driver:get_local_storage("k"), nil)
+
         print("\n[Element state]")
         local hidden = driver:find_element(By.id("hidden-box"))
         check_eq("hidden is_displayed", hidden:is_displayed(), false)
@@ -74,6 +95,10 @@ local ok, err = xpcall(function()
         check_eq("property value after type", field:get_property("value"), "typed")
         local rect = field:get_rect()
         check("get_rect width", type(rect.width) == "number" and rect.width > 0)
+        local loc = field:location()
+        check("location x", type(loc.x) == "number")
+        local sz = field:size()
+        check("size width", type(sz.width) == "number" and sz.width > 0)
         local color = driver:find_element(By.id("title")):get_css_value("display")
         check_eq("css display", color, "block")
 
@@ -101,6 +126,8 @@ local ok, err = xpcall(function()
         local n = driver:execute_script("return arguments.length;", args)
         check_eq("empty args length", n, 0)
         check("empty args table not mutated", args[0] == nil)
+        check_eq("script returns false", driver:execute_script("return false;"), false)
+        check_eq("script returns null", driver:execute_script("return null;"), nil)
 
         local async_val = driver:execute_async_script([[
             var cb = arguments[arguments.length - 1];
@@ -134,6 +161,10 @@ local ok, err = xpcall(function()
 
         local pdf = driver:print_page()
         check("print_page PDF", type(pdf) == "string" and #pdf > 100)
+
+        driver:find_element(By.id("submit-field")):submit()
+        local submitted = driver:execute_script("return window.__submitted === true;")
+        check("element:submit", submitted == true)
     end)
 end, debug.traceback)
 

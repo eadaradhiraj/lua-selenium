@@ -70,10 +70,9 @@
 Still open; no release version until these are settled or explicitly deferred.
 
 * **LuaRocks publish**: `luarocks upload` of a numbered rock (blocked on API stability + account). SCM rockspec only for now.
-* **Classic log endpoint**: `GET /session/{id}/log` / Chrome log types as a fallback when BiDi is off.
-* **Closed shadow roots / slotted content**: only open shadow roots are tested.
-* **Page Object extras**: load URL from `Page.extend({ url })` in more examples; no generator/scaffolding.
-* **README**: usage still lives in this spec and the `test_*.lua` files only.
+* **Firefox/Safari live sessions**: capability builders exist; only Chrome is exercised in `run_tests.lua`.
+* **Closed shadow internals**: we assert closed roots are not inspectable; no pierce/slot API.
+* **POM scaffolding**: no page-object generator; `Page.extend({ url })` is manual.
 
 ```text
 +-------------------------------------------------------------------------------+
@@ -119,3 +118,7 @@ What landed each pass, and what was left afterward.
 ### Iteration 7 — DRY local suites onto with_local_session
 **Done:** `test_phase1.lua`, `test_phase2.lua`, and `test_phase3.lua` start the HTML fixture and Chrome through `webdriver_test.with_local_session` (no hand-rolled pid files). Phase 1 no longer depends on a pre-existing chromedriver on 9515.
 **Yet to do:** Items in Part 2 (LuaRocks upload, classic logs, closed shadow, POM extras, README).
+
+### Iteration 8 — daily-driver API, docs, logs
+**Done:** README + MIT LICENSE + `example.lua` (offline data-URL smoke). Second-based `implicitly_wait` / `set_page_load_timeout` / `set_script_timeout` (W3C `set_timeouts` stays milliseconds). `get_window_size` / `get_window_position` / `set_window_position`. `WebElement:location`, `:size`, `:submit`. `localStorage` get/set/clear. `get_log` via `/se/log`, `/log`, or BiDi console buffer. `goog:loggingPrefs` when `logging` / `browser_log` is set. Closed shadow roots asserted unreadable. `Page.extend` + `open(url)` covered in tests. Fixed W3C JSON unwrap so `false` / `null` are not replaced by the whole response envelope.
+**Yet to do:** Items in Part 2 (LuaRocks upload, Firefox/Safari live runs, closed-shadow pierce, POM generator).

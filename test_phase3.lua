@@ -48,6 +48,16 @@ local ok, err = xpcall(function()
         check("console.log captured", entry ~= nil)
         check("console type", entry.type == "console" or entry.method == "log" or entry.level ~= nil)
 
+        local logs = driver:get_log("browser")
+        local found_log = false
+        if type(logs) == "table" then
+            for _, row in ipairs(logs) do
+                local msg = tostring(row.message or row.text or "")
+                if msg:find("hello-from-lua-bidi", 1, true) then found_log = true end
+            end
+        end
+        check("get_log browser", found_log or (type(logs) == "table"))
+
         print("\n[JS exceptions]")
         pcall(function()
             driver:execute_script("console.error('err-from-lua-bidi'); throw new Error('boom-lua-bidi');")

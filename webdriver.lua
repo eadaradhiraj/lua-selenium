@@ -298,7 +298,11 @@ local function request(method, url, body_table)
         error("WebDriver Error (" .. tostring(status) .. ")" .. (err_msg and (": " .. err_msg) or ""))
     end
 
-    return decoded and decoded.value or decoded
+    -- W3C bodies are { value = ... }. Do not use `or decoded`: JSON null and false are valid values.
+    if type(decoded) == "table" then
+        return decoded.value
+    end
+    return decoded
 end
 
 local function element_ref(element)
@@ -417,6 +421,11 @@ local function build_always_match(options)
     end
     if options.bidi then
         always.webSocketUrl = true
+    end
+    if options.logging then
+        always["goog:loggingPrefs"] = options.logging
+    elseif options.browser_log then
+        always["goog:loggingPrefs"] = { browser = "ALL" }
     end
     if options.capabilities then
         for k, v in pairs(options.capabilities) do
@@ -808,6 +817,44 @@ function WebDriver:print_page(opts)
     return request("POST", self.base_url .. "/print", opts or {})
 end
 
+-- Selenium-style browser logs. Prefers /se/log, then /log, then BiDi console buffer.
+function WebDriver:get_log(log_type)
+    log_type = log_type or "browser"
+    local ok, res = pcall(request, "POST", self.base_url .. "/se/log", { type = log_type })
+    if ok then return res end
+    ok, res = pcall(request, "POST", self.base_url .. "/log", { type = log_type })
+    if ok then return res end
+    if self.websocket_url then
+        local entries = self:get_console_logs()
+        local mapped = {}
+        for _, e in ipairs(entries) do
+            mapped[#mapped + 1] = {
+                level = e.level,
+                message = e.text,
+                timestamp = e.timestamp,
+                type = e.type,
+            }
+        end
+        return mapped
+    end
+    error("Browser logs are unavailable; create the session with bidi=true")
+end
+
+function WebDriver:get_local_storage(key)
+    return self:execute_script("return window.localStorage.getItem(arguments[0]);", { key })
+end
+
+function WebDriver:set_local_storage(key, value)
+    return self:execute_script(
+        "window.localStorage.setItem(arguments[0], arguments[1]);",
+        { key, value }
+    )
+end
+
+function WebDriver:clear_local_storage()
+    return self:execute_script("window.localStorage.clear();")
+end
+
 -----------------------------------------------------------
 -- Timeouts (values are milliseconds, matching the W3C wire protocol)
 -----------------------------------------------------------
@@ -823,6 +870,19 @@ function WebDriver:set_timeouts(opts)
     if opts.pageLoad ~= nil then payload.pageLoad = opts.pageLoad end
     if opts.script ~= nil then payload.script = opts.script end
     return request("POST", self.base_url .. "/timeouts", payload)
+end
+
+-- Seconds, matching wait_until. Wire protocol is still milliseconds.
+function WebDriver:implicitly_wait(seconds)
+    return self:set_timeouts({ implicit = math.floor((seconds or 0) * 1000) })
+end
+
+function WebDriver:set_page_load_timeout(seconds)
+    return self:set_timeouts({ page_load = math.floor((seconds or 0) * 1000) })
+end
+
+function WebDriver:set_script_timeout(seconds)
+    return self:set_timeouts({ script = math.floor((seconds or 0) * 1000) })
 end
 
 -----------------------------------------------------------
@@ -866,6 +926,20 @@ end
 
 function WebDriver:set_window_size(width, height)
     return self:set_window_rect({ width = width, height = height })
+end
+
+function WebDriver:get_window_size()
+    local rect = self:get_window_rect()
+    return { width = rect.width, height = rect.height }
+end
+
+function WebDriver:get_window_position()
+    local rect = self:get_window_rect()
+    return { x = rect.x, y = rect.y }
+end
+
+function WebDriver:set_window_position(x, y)
+    return self:set_window_rect({ x = x, y = y })
 end
 
 function WebDriver:maximize_window()
@@ -1208,6 +1282,31 @@ end
 
 function WebElement:get_rect()
     return request("GET", self.base_url .. "/rect")
+end
+
+function WebElement:location()
+    local rect = self:get_rect()
+    return { x = rect.x, y = rect.y }
+end
+
+function WebElement:size()
+    local rect = self:get_rect()
+    return { width = rect.width, height = rect.height }
+end
+
+function WebElement:submit()
+    return self.driver:execute_script([[
+        var e = arguments[0];
+        var form = e.form || (e.tagName === "FORM" ? e : null);
+        if (!form) { return false; }
+        if (typeof form.requestSubmit === "function") {
+            if (e !== form && e.type === "submit") { form.requestSubmit(e); }
+            else { form.requestSubmit(); }
+        } else {
+            form.submit();
+        }
+        return true;
+    ]], { self })
 end
 
 function WebElement:is_enabled()

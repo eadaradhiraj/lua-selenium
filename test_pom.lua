@@ -64,6 +64,17 @@ local ok, err = xpcall(function()
         root:find_element(By.id("shadow-btn")):click()
         check_eq("shadow click reaches host", host:get_attribute("data-clicked"), "1")
 
+        local closed = driver:find_element(By.id("closed-host"))
+        local closed_ok = pcall(function()
+            return closed:shadow_root():find_element(By.css("p"))
+        end)
+        check("closed shadow is not inspectable", not closed_ok)
+
+        local Home = WebDriver.Page.extend({
+            locators = { title = By.id("title") }
+        })
+        check_eq("Page.extend open(url)", Home.new(driver, { url = url }):open():text("title"), "Fixture Home")
+
         print("\n[File upload]")
         local path = "/tmp/lua-selenium-upload.txt"
         local f = assert(io.open(path, "w"))

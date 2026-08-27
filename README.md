@@ -2,7 +2,7 @@
 
 A Lua client for the [W3C WebDriver](https://www.w3.org/TR/webdriver2/) protocol. It can spawn ChromeDriver for you, talk HTTP to the classic endpoints, and optionally open a BiDi WebSocket for console logs and network mocks.
 
-Install from LuaRocks (`luaselenium 0.1.0`) or from this tree with `luarocks make`.
+Install with LuaRocks from this GitHub repo (nothing is published to luarocks.org).
 
 ## Requirements
 
@@ -75,16 +75,20 @@ lua examples/wikipedia.lua               -- smoke; skips if offline
 
 ## Install
 
+LuaRocks clones the git source; there is no luarocks.org upload.
+
 ```bash
-luarocks make luaselenium-0.1.0-1.rockspec
-# development tree:
+# tagged 0.1.0
+luarocks install git+https://github.com/eadaradhiraj/lua-selenium.git#v0.1.0
+
+# same, via the rockspec URL
+luarocks install https://raw.githubusercontent.com/eadaradhiraj/lua-selenium/v0.1.0/luaselenium-0.1.0-1.rockspec
+
+# latest main
+luarocks install git+https://github.com/eadaradhiraj/lua-selenium.git
+
+# from a local clone
 luarocks make luaselenium-scm-1.rockspec
-```
-
-`v0.1.0` is tagged. Upload to LuaRocks.org needs an API key from [luarocks.org/settings](https://luarocks.org/settings/api-keys):
-
-```bash
-luarocks upload luaselenium-0.1.0-1.rockspec --api-key=YOUR_KEY
 ```
 
 ## Layout

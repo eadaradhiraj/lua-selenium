@@ -50,28 +50,25 @@
 * **Automatic Driver Lifecycle**: If no `server_url` is given, spawn `chromedriver` / `geckodriver` / `safaridriver` on a free port. The process is tied to a pipe so `quit()`, `__close` (`<close>`), and GC of the driver object kill it.
 * **Multi-Browser Capabilities**: `goog:chromeOptions`, `moz:firefoxOptions`, `safari:options`, `ms:edgeOptions`, plus `bstack:options` / `sauce:options`. Remote URLs via `provider = "browserstack"|"saucelabs"`, `grid_url`, or `username`/`access_key`. HTTPS via luasec.
 
+### 8. Modern Tooling & Ecosystem (Phase 3)
+* **WebDriver BiDi**: Session capability `webSocketUrl: true` (`bidi = true`). Minimal WebSocket client plus JSON-RPC BiDi commands. `driver:bidi()` for `subscribe`, `on`, `navigate`, console logs, JS exceptions, and `mock_request` network interception.
+* **CDP**: `driver:execute_cdp(cmd, params)` via ChromeDriver `/goog/cdp/execute`.
+* **Test runners**: `webdriver_test` assertions (`equal`, `contains`, `matches`) and `with_driver` fixture. Busted example in `spec/webdriver_spec.lua`.
+* **Packaging**: `luaselenium-0.1.0-1.rockspec` for LuaRocks (`luarocks make`).
+
 ---
 
 ## Part 2: Future Roadmap & Next Steps
 
-### Phase 3: Modern Tooling & Ecosystem (Long-Term)
+The stack below is implemented except Page Object helpers and publishing the rock to LuaRocks.org (`luarocks upload`).
 
 ```text
 +-------------------------------------------------------------------------------+
-|                             Future Lua-Selenium Stack                         |
+|                               Lua-Selenium Stack                              |
 +-------------------------------------------------------------------------------+
-| High-Level:   Page Object Model (POM)  |  Test Runners (Busted / LuaUnit)     |
-| Mid-Level:    Fluent API Locators (`By`)  |  Actions API  |  Wait Conditions  |
-| Transport:    W3C REST (HTTP)           |  WebDriver BiDi / CDP (WebSocket)   |
-| Engine:       Chromedriver / GeckoDriver / Selenium Grid / Cloud Providers     |
+| High-Level:   Test helpers (webdriver_test / Busted fixture)                  |
+| Mid-Level:    Fluent locators (`By`)  |  Actions API  |  Wait conditions      |
+| Transport:    W3C REST (HTTP)         |  WebDriver BiDi / CDP (WebSocket)     |
+| Engine:       Chromedriver / GeckoDriver / Selenium Grid / Cloud providers    |
 +-------------------------------------------------------------------------------+
 ```
-
-1. **WebDriver BiDi / Chrome DevTools Protocol (CDP)**:
-   * Introduce a WebSocket transport layer (e.g. `lua-websockets`) to support the new W3C BiDi protocol.
-   * Real-time network request interception and mocking.
-   * Streaming browser console log events and JS exception captures.
-2. **Test Runner Integrations**:
-   * Build assertion helpers and fixtures for popular Lua test frameworks like `busted` or `telescope`.
-3. **Packaging**:
-   * Create a formal `luaselenium-0.1.0-1.rockspec` file and publish it to [LuaRocks.org](https://luarocks.org) for single-command installation (`luarocks install luaselenium`).

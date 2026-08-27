@@ -352,6 +352,9 @@ local function build_always_match(options)
     if options.sauce_options then
         always["sauce:options"] = options.sauce_options
     end
+    if options.bidi then
+        always.webSocketUrl = true
+    end
     if options.capabilities then
         for k, v in pairs(options.capabilities) do
             always[k] = v
@@ -561,10 +564,13 @@ function WebDriver.new(options, browser_name)
 
     local res = request("POST", server_url .. "/session", payload)
     local session_id = res.sessionId
+    local capabilities = res.capabilities or {}
 
     return setmetatable({
         server_url = server_url,
         session_id = session_id,
+        capabilities = capabilities,
+        websocket_url = capabilities.webSocketUrl,
         base_url = server_url .. "/session/" .. session_id,
         browser_name = browser,
         _proc = proc,
@@ -583,6 +589,10 @@ end
 function WebDriver:quit()
     if self._quitting then return end
     self._quitting = true
+    if self._bidi then
+        pcall(function() self._bidi:close() end)
+        self._bidi = nil
+    end
     local ok, err = true, nil
     if self.base_url then
         ok, err = pcall(request, "DELETE", self.base_url)
@@ -608,6 +618,36 @@ end
 
 function WebDriver:get_current_url()
     return request("GET", self.base_url .. "/url")
+end
+
+function WebDriver:bidi()
+    if self._bidi then
+        return self._bidi
+    end
+    local BiDi = require("webdriver_bidi")
+    self._bidi = BiDi.connect(self)
+    return self._bidi
+end
+
+function WebDriver:on_console(fn)
+    return self:bidi():on("log.entryAdded", fn)
+end
+
+function WebDriver:mock_request(url_pattern, response)
+    return self:bidi():mock_request(url_pattern, response)
+end
+
+function WebDriver:get_console_logs()
+    return self:bidi():console_logs()
+end
+
+function WebDriver:execute_cdp(cmd, params)
+    local body = { cmd = cmd, params = params or {} }
+    local ok, res = pcall(request, "POST", self.base_url .. "/goog/cdp/execute", body)
+    if ok then
+        return res
+    end
+    return request("POST", self.base_url .. "/chromium/send_command_and_get_result", body)
 end
 
 function WebDriver:find_element(using, value)
@@ -1036,5 +1076,10 @@ WebDriver.WebElement = WebElement
 WebDriver.Alert = Alert
 WebDriver.Actions = Actions
 WebDriver.ELEMENT_KEY = ELEMENT_KEY
+WebDriver.test = setmetatable({}, {
+    __index = function(_, key)
+        return require("webdriver_test")[key]
+    end
+})
 
 return WebDriver

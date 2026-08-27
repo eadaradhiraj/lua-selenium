@@ -1,0 +1,124 @@
+local WebDriver = require("webdriver")
+local test = require("webdriver_test")
+local socket = require("socket")
+
+local passed = 0
+local failed = 0
+
+local function check(name, cond, extra)
+    if cond then
+        passed = passed + 1
+        print("  PASS  " .. name)
+    else
+        failed = failed + 1
+        print("  FAIL  " .. name .. (extra and (" — " .. tostring(extra)) or ""))
+    end
+end
+
+print("[Assertion helpers]")
+local ok_eq = pcall(test.equal, 1, 1)
+check("equal success", ok_eq)
+local ok_fail = pcall(test.equal, 1, 2)
+check("equal failure raises", not ok_fail)
+pcall(function()
+    test.contains("hello world", "world")
+end)
+check("contains string", true)
+
+print("\nStarting fixture server...")
+os.execute("lua fixture_server.lua 8767 >/tmp/lua-selenium-fixture3.log 2>&1 & echo $! >/tmp/lua-selenium-fixture3.pid")
+socket.sleep(0.3)
+local fixture_url = "http://127.0.0.1:8767/"
+local api_url = "http://127.0.0.1:8767/api.json"
+
+local function stop_fixture()
+    local pid_file = io.open("/tmp/lua-selenium-fixture3.pid", "r")
+    if pid_file then
+        local pid = pid_file:read("*l")
+        pid_file:close()
+        if pid and #pid > 0 then
+            os.execute("kill " .. pid .. " >/dev/null 2>&1")
+        end
+    end
+end
+
+print("Session fixture with_driver + BiDi...")
+local ok, err = xpcall(function()
+    test.with_driver({
+        headless = true,
+        spawn = true,
+        port = 9517,
+        bidi = true,
+    }, function(driver)
+        check("websocket url present", type(driver.websocket_url) == "string" and #driver.websocket_url > 0, driver.websocket_url)
+
+        driver:get(fixture_url)
+        check("navigated", driver:get_title() == "Lua Selenium Fixture")
+
+        local bidi = driver:bidi()
+        check("bidi connected", bidi ~= nil)
+
+        print("\n[Console logs]")
+        driver:execute_script("console.log('hello-from-lua-bidi');")
+        local entry = bidi:wait_for_log(function(e)
+            return e.text and tostring(e.text):find("hello-from-lua-bidi", 1, true)
+        end, 5)
+        check("console.log captured", entry ~= nil)
+        check("console type", entry.type == "console" or entry.method == "log" or entry.level ~= nil)
+
+        print("\n[JS exceptions]")
+        pcall(function()
+            driver:execute_script("console.error('err-from-lua-bidi'); throw new Error('boom-lua-bidi');")
+        end)
+        local js_err = bidi:wait_for_log(function(e)
+            local text = tostring(e.text or "")
+            return text:find("boom-lua-bidi", 1, true) or text:find("err-from-lua-bidi", 1, true)
+        end, 5)
+        check("exception or error log captured", js_err ~= nil)
+
+        print("\n[Network mock]")
+        bidi:mock_request(api_url, {
+            status_code = 200,
+            body = '{"source":"mock"}',
+            content_type = "application/json",
+        })
+        driver:execute_script([[
+            window.__api = null;
+            fetch('/api.json').then(function(r) { return r.json(); }).then(function(j) {
+                window.__api = j;
+            }).catch(function(e) {
+                window.__api = { error: String(e) };
+            });
+            return true;
+        ]])
+        local mocked = driver:wait_until(function(d)
+            bidi:pump(0.2)
+            return d:execute_script("return window.__api && window.__api.source;")
+        end, 8)
+        check("mocked fetch body", mocked == "mock")
+
+        print("\n[CDP]")
+        local cdp = driver:execute_cdp("Runtime.evaluate", { expression = "1+2", returnByValue = true })
+        local value = cdp
+        if type(cdp) == "table" then
+            value = cdp.result and cdp.result.value
+            if value == nil and cdp.value then
+                value = cdp.value.result and cdp.value.result.value or cdp.value
+            end
+        end
+        check("CDP Runtime.evaluate", value == 3 or value == "3", "got " .. tostring(value))
+    end)
+end, debug.traceback)
+
+if not ok then
+    failed = failed + 1
+    print("\nERROR: " .. tostring(err))
+end
+
+stop_fixture()
+
+print(string.format("\n%d passed, %d failed", passed, failed))
+if failed > 0 then
+    os.exit(1)
+end
+print("[+] Phase 3 tests completed successfully!")

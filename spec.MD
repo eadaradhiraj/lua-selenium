@@ -71,12 +71,12 @@
 
 ## Part 2: Yet to be done
 
-Still open; no release version until these are settled or explicitly deferred.
+No numbered release until the API is stable. Remaining items are deferred or out of scope — nothing queued.
 
 * **LuaRocks publish**: deferred (no upload until explicitly requested). SCM rockspec only.
+* **CI / GitHub Actions**: deferred (no workflow until explicitly requested). Local gate remains `lua run_tests.lua`.
 * **Safari**: out of scope. `safaridriver` is macOS-only.
 * **Closed-shadow pierce**: Chromium CDP only; Gecko does not expose closed trees.
-* **CI**: no GitHub Actions workflow yet for `lua run_tests.lua`.
 
 ```text
 +-------------------------------------------------------------------------------+
@@ -150,3 +150,7 @@ What landed each pass, and what was left afterward.
 ### Iteration 14 — extra expected conditions
 **Done:** `EC.text_to_be_present_in_element`, `text_to_be_present_in_element_value`, `frame_to_be_available_and_switch_to_it` (locator, index, or element), `number_of_windows_to_be`. Covered in `test_api.lua` on Chrome and Firefox.
 **Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only; GitHub Actions).
+
+### Iteration 15 — defer CI and LuaRocks
+**Done:** Part 2 marks GitHub Actions and LuaRocks upload as deferred until explicitly requested. Local verification stays `lua run_tests.lua`.
+**Yet to do:** Nothing queued (Safari out of scope; closed pierce Chromium-only).

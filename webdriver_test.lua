@@ -111,6 +111,21 @@ function M.install_busted(busted_assert, opts)
     return helpers
 end
 
+function M.reachable(url, timeout)
+    url = url or "https://www.wikipedia.org"
+    timeout = timeout or 4
+    local ok_ssl, https = pcall(require, "ssl.https")
+    if ok_ssl then
+        https.TIMEOUT = timeout
+        local _, code = https.request(url)
+        return type(code) == "number" and code >= 200 and code < 500
+    end
+    local http = require("socket.http")
+    http.TIMEOUT = timeout
+    local _, code = http.request(url)
+    return type(code) == "number" and code >= 200 and code < 500
+end
+
 function M.start_fixture(port)
     port = port or 8765
     local socket = require("socket")

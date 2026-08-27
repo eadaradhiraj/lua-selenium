@@ -113,6 +113,27 @@ local ok, err = xpcall(function()
         check_eq("visibility_of_element", el:get_text(), "Fixture Home")
         local clickable = driver:wait_until(WebDriver.EC.element_to_be_clickable(By.id("alert-btn")), 2)
         check("element_to_be_clickable", clickable ~= nil)
+        check("invisibility_of_element", driver:wait_until(WebDriver.EC.invisibility_of_element(By.id("hidden-box")), 2) == true)
+
+        local boom_ok, boom_err = pcall(function()
+            driver:wait_until(function()
+                error("boom-wait")
+            end, 0.5, 0.1)
+        end)
+        check("wait_until surfaces last error", (not boom_ok) and tostring(boom_err):find("boom-wait", 1, true) ~= nil)
+
+        print("\n[switch_to facade]")
+        driver:switch_to():frame(driver:find_element(By.id("frame1")))
+        check_eq("switch_to().frame", driver:find_element(By.id("inside")):get_text(), "in frame")
+        driver:switch_to():default_content()
+        check_eq("switch_to().default_content", driver:find_element(By.id("title")):get_text(), "Fixture Home")
+
+        local stale_el = driver:find_element(By.id("nested"))
+        driver:execute_script("arguments[0].remove();", { stale_el })
+        check("staleness_of", driver:wait_until(WebDriver.EC.staleness_of(stale_el), 3) == true)
+
+        local pdf = driver:print_page()
+        check("print_page PDF", type(pdf) == "string" and #pdf > 100)
     end)
 end, debug.traceback)
 

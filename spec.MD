@@ -70,12 +70,8 @@
 Still open; no release version until these are settled or explicitly deferred.
 
 * **LuaRocks publish**: `luarocks upload` of a numbered rock (blocked on API stability + account). SCM rockspec only for now.
-* **`switch_to` facade**: Selenium-style `driver:switch_to().frame / window / alert / default_content` sugar on top of the existing methods.
-* **Wait robustness**: `wait_until` currently swallows condition errors; surface the last error on timeout. Add `EC.staleness_of`, `EC.invisibility_of_element`, `EC.url_is`.
 * **Test DRY**: `test_phase1.lua` / `test_phase2.lua` / `test_phase3.lua` still start the fixture server by hand instead of `with_local_session`.
-* **Network-optional smoke tests**: `test.lua` / `test_advanced.lua` hit Wikipedia; skip cleanly when offline.
 * **Classic log endpoint**: `GET /session/{id}/log` / Chrome log types as a fallback when BiDi is off.
-* **Print-to-PDF**: `POST /session/{id}/print`.
 * **Closed shadow roots / slotted content**: only open shadow roots are tested.
 * **Page Object extras**: load URL from `Page.extend({ url })` in more examples; no generator/scaffolding.
 * **README**: usage still lives in this spec and the `test_*.lua` files only.
@@ -116,3 +112,7 @@ What landed each pass, and what was left afterward.
 ### Iteration 5 — Page objects, shadow DOM, uploads
 **Done:** `WebDriver.Page` / `Page.extend` (`el`, `els`, `type`, `click`, `component`, `wait_el`). Open shadow root find + click. File `<input>` via `send_keys(path)`. `with_local_session` + `start_fixture`. `test_pom.lua` (9 checks). `run_tests.lua` local suite (108 checks).
 **Yet to do:** Items in Part 2 (LuaRocks upload, `switch_to` sugar, wait-error surfacing, test DRY, offline Wikipedia tests, print/PDF, closed shadow, README).
+
+### Iteration 6 — switch_to, wait errors, extra EC, print, offline skip
+**Done:** `driver:switch_to():frame/window/alert/default_content/parent_frame/active_element`. `wait_until` appends the last condition error on timeout. `EC.url_is`, `EC.staleness_of`, `EC.invisibility_of_element`. `print_page()` (W3C PDF). `test.lua` / `test_advanced.lua` skip when Wikipedia is unreachable; advanced test auto-spawns ChromeDriver. `webdriver_test.reachable`. `close_window` retries once (Chrome can stall under load).
+**Yet to do:** Items in Part 2 (LuaRocks upload, test DRY, classic logs, closed shadow, POM extras, README).

@@ -776,15 +776,23 @@ function WebDriver:wait_until(condition_func, timeout_sec, interval_sec)
     timeout_sec = timeout_sec or 10
     interval_sec = interval_sec or 0.2
     local start_time = socket.gettime()
+    local last_err
 
     while socket.gettime() - start_time < timeout_sec do
         local ok, result = pcall(condition_func, self)
         if ok and result then
             return result
         end
+        if not ok then
+            last_err = result
+        end
         socket.sleep(interval_sec)
     end
-    error("Timeout: Condition was not met within " .. tostring(timeout_sec) .. " seconds")
+    local msg = "Timeout: Condition was not met within " .. tostring(timeout_sec) .. " seconds"
+    if last_err then
+        msg = msg .. " (last error: " .. tostring(last_err) .. ")"
+    end
+    error(msg)
 end
 
 function WebDriver:save_screenshot(filename)
@@ -794,6 +802,10 @@ function WebDriver:save_screenshot(filename)
     file:write(binary_data)
     file:close()
     return true
+end
+
+function WebDriver:print_page(opts)
+    return request("POST", self.base_url .. "/print", opts or {})
 end
 
 -----------------------------------------------------------
@@ -829,6 +841,12 @@ function WebDriver:switch_to_window(handle)
 end
 
 function WebDriver:close_window()
+    local ok, err = pcall(request, "DELETE", self.base_url .. "/window")
+    if ok then
+        return err
+    end
+    -- Chrome sometimes takes >20s under load; one retry after a short pause.
+    socket.sleep(0.5)
     return request("DELETE", self.base_url .. "/window")
 end
 
@@ -888,6 +906,31 @@ end
 
 function WebDriver:switch_to_default_content()
     return self:switch_to_frame(nil)
+end
+
+-- Selenium-style facade: driver:switch_to():frame(el), :window(h), :alert(), ...
+function WebDriver:switch_to()
+    local d = self
+    return {
+        frame = function(_, target)
+            return d:switch_to_frame(target)
+        end,
+        window = function(_, handle)
+            return d:switch_to_window(handle)
+        end,
+        alert = function()
+            return d:alert()
+        end,
+        default_content = function()
+            return d:switch_to_default_content()
+        end,
+        parent_frame = function()
+            return d:switch_to_parent_frame()
+        end,
+        active_element = function()
+            return d:get_active_element()
+        end,
+    }
 end
 
 -----------------------------------------------------------
@@ -1248,6 +1291,37 @@ function EC.url_contains(part)
     return function(d)
         local actual = d:get_current_url()
         return actual and actual:find(part, 1, true) and actual
+    end
+end
+
+function EC.url_is(url)
+    return function(d)
+        local actual = d:get_current_url()
+        return actual == url and actual
+    end
+end
+
+function EC.staleness_of(element)
+    return function()
+        local ok = pcall(function()
+            return element:get_tag_name()
+        end)
+        return not ok
+    end
+end
+
+function EC.invisibility_of_element(using, value)
+    return function(d)
+        local ok, el = pcall(function()
+            return d:find_element(using, value)
+        end)
+        if not ok or not el then
+            return true
+        end
+        local vis_ok, shown = pcall(function()
+            return el:is_displayed()
+        end)
+        return (not vis_ok) or (not shown)
     end
 end
 

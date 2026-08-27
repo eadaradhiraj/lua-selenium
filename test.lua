@@ -1,5 +1,11 @@
 local WebDriver = require("webdriver")
 local By = WebDriver.By
+local test = require("webdriver_test")
+
+if not test.reachable("https://www.wikipedia.org") then
+    print("SKIP: Wikipedia unreachable (offline)")
+    os.exit(0)
+end
 
 print("[1] Launching Chrome in HEADLESS mode...")
 local driver = WebDriver.new({

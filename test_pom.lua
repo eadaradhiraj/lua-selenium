@@ -70,11 +70,15 @@ local ok, err = xpcall(function()
         end)
         check("closed internals not in light DOM", not light_ok)
 
-        local pierced = closed:shadow_root({ pierce = true })
-        check("pierced closed shadow root", pierced ~= nil and pierced.find_element ~= nil)
-        check_eq("text inside closed shadow", pierced:find_element(By.id("closed-text")):get_text(), "inside closed")
-        closed:find_in_shadow(By.id("closed-btn")):click()
-        check_eq("closed shadow click reaches host", closed:get_attribute("data-clicked"), "1")
+        if driver:is_chromium() then
+            local pierced = closed:shadow_root({ pierce = true })
+            check("pierced closed shadow root", pierced ~= nil and pierced.find_element ~= nil)
+            check_eq("text inside closed shadow", pierced:find_element(By.id("closed-text")):get_text(), "inside closed")
+            closed:find_in_shadow(By.id("closed-btn")):click()
+            check_eq("closed shadow click reaches host", closed:get_attribute("data-clicked"), "1")
+        else
+            print("  SKIP  closed shadow pierce — Chromium CDP only")
+        end
 
         print("\n[Shadow slots]")
         local slotted = driver:find_element(By.id("slotted-title"))

@@ -328,11 +328,11 @@ wrap_js_value = function(driver, value)
     if type(value) ~= "table" then
         return value
     end
+    if value[SHADOW_KEY] then
+        return WebElement.new(driver, value[SHADOW_KEY], { shadow = true })
+    end
     if value[ELEMENT_KEY] then
         return WebElement.new(driver, value[ELEMENT_KEY])
-    end
-    if value[SHADOW_KEY] then
-        return WebElement.new(driver, value[SHADOW_KEY])
     end
     local maxn, count = 0, 0
     local is_list = true
@@ -422,10 +422,12 @@ local function build_always_match(options)
     if options.bidi then
         always.webSocketUrl = true
     end
-    if options.logging then
-        always["goog:loggingPrefs"] = options.logging
-    elseif options.browser_log then
-        always["goog:loggingPrefs"] = { browser = "ALL" }
+    if browser == "chrome" or browser == "MicrosoftEdge" then
+        if options.logging then
+            always["goog:loggingPrefs"] = options.logging
+        elseif options.browser_log then
+            always["goog:loggingPrefs"] = { browser = "ALL" }
+        end
     end
     if options.capabilities then
         for k, v in pairs(options.capabilities) do
@@ -694,6 +696,11 @@ function WebDriver:quit()
     if not ok then
         error(err)
     end
+end
+
+function WebDriver:is_chromium()
+    local b = self.browser_name
+    return b == "chrome" or b == "chromium" or b == "MicrosoftEdge"
 end
 
 function WebDriver:__close()
@@ -1235,32 +1242,52 @@ end
 -----------------------------------------------------------
 -- WebElement Methods
 -----------------------------------------------------------
-function WebElement.new(driver, element_id)
+function WebElement.new(driver, element_id, opts)
+    opts = opts or {}
     return setmetatable({
         driver = driver,
         id = element_id,
+        shadow = opts.shadow == true,
         base_url = driver.base_url .. "/element/" .. element_id
     }, WebElement)
 end
 
+local function element_from_ref(driver, res)
+    if type(res) == "table" and res[SHADOW_KEY] then
+        return WebElement.new(driver, res[SHADOW_KEY], { shadow = true })
+    end
+    return WebElement.new(driver, res[ELEMENT_KEY])
+end
+
 function WebElement:find_element(using, value)
     using, value = locator_args(using, value)
-    local res = request("POST", self.base_url .. "/element", {
-        using = using,
-        value = value
-    })
-    return WebElement.new(self.driver, res[ELEMENT_KEY])
+    local body = { using = using, value = value }
+    if self.shadow then
+        local ok, res = pcall(request, "POST", self.driver.base_url .. "/shadow/" .. self.id .. "/element", body)
+        if ok then
+            return element_from_ref(self.driver, res)
+        end
+    end
+    local res = request("POST", self.base_url .. "/element", body)
+    return element_from_ref(self.driver, res)
 end
 
 function WebElement:find_elements(using, value)
     using, value = locator_args(using, value)
-    local res = request("POST", self.base_url .. "/elements", {
-        using = using,
-        value = value
-    })
+    local body = { using = using, value = value }
+    local res
+    if self.shadow then
+        local ok, found = pcall(request, "POST", self.driver.base_url .. "/shadow/" .. self.id .. "/elements", body)
+        if ok then
+            res = found
+        end
+    end
+    if not res then
+        res = request("POST", self.base_url .. "/elements", body)
+    end
     local elements = {}
     for _, el in ipairs(res) do
-        table.insert(elements, WebElement.new(self.driver, el[ELEMENT_KEY]))
+        table.insert(elements, element_from_ref(self.driver, el))
     end
     return elements
 end
@@ -1421,7 +1448,7 @@ function WebElement:_open_shadow_root()
     if ok and type(res) == "table" then
         local id = res[SHADOW_KEY] or res[ELEMENT_KEY]
         if id then
-            return WebElement.new(self.driver, id)
+            return WebElement.new(self.driver, id, { shadow = true })
         end
     end
     local via_js = self.driver:execute_script("return arguments[0].shadowRoot;", { self })

@@ -90,15 +90,19 @@ local ok, err = xpcall(function()
         check("mocked fetch body", mocked == "mock")
 
         print("\n[CDP]")
-        local cdp = driver:execute_cdp("Runtime.evaluate", { expression = "1+2", returnByValue = true })
-        local value = cdp
-        if type(cdp) == "table" then
-            value = cdp.result and cdp.result.value
-            if value == nil and cdp.value then
-                value = cdp.value.result and cdp.value.result.value or cdp.value
+        if driver:is_chromium() then
+            local cdp = driver:execute_cdp("Runtime.evaluate", { expression = "1+2", returnByValue = true })
+            local value = cdp
+            if type(cdp) == "table" then
+                value = cdp.result and cdp.result.value
+                if value == nil and cdp.value then
+                    value = cdp.value.result and cdp.value.result.value or cdp.value
+                end
             end
+            check("CDP Runtime.evaluate", value == 3 or value == "3", "got " .. tostring(value))
+        else
+            print("  SKIP  CDP Runtime.evaluate — Chromium only")
         end
-        check("CDP Runtime.evaluate", value == 3 or value == "3", "got " .. tostring(value))
     end)
 end, debug.traceback)
 

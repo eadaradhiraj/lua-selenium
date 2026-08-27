@@ -20,7 +20,7 @@ local function check_eq(name, actual, expected)
     check(name, ok, "expected " .. tostring(expected) .. ", got " .. tostring(actual))
 end
 
-print("Launching Chrome (headless)...")
+print("Launching " .. test.requested_browser() .. " (headless)...")
 local ok, err = xpcall(function()
     test.with_local_session({
         fixture_port = 8765,

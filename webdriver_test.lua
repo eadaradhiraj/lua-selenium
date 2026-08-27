@@ -69,6 +69,7 @@ function M.with_driver(opts, fn)
         opts = nil
     end
     opts = opts or {}
+    opts = M.apply_browser(opts)
     if opts.headless == nil then
         opts.headless = true
     end
@@ -173,6 +174,7 @@ function M.with_local_session(opts, fn)
             driver_opts[k] = v
         end
     end
+    driver_opts = M.apply_browser(driver_opts)
     if driver_opts.headless == nil then driver_opts.headless = true end
     if driver_opts.spawn == nil then driver_opts.spawn = true end
 
@@ -192,5 +194,30 @@ end
 M.assert_equal = M.equal
 M.assert_true = M.is_true
 M.assert_false = M.is_false
+
+function M.requested_browser()
+    local name = os.getenv("LUA_SELENIUM_BROWSER")
+    if name and #name > 0 then
+        return name
+    end
+    return "chrome"
+end
+
+function M.is_chromium(driver)
+    local b = driver and driver.browser_name or M.requested_browser()
+    return b == "chrome" or b == "chromium" or b == "MicrosoftEdge"
+end
+
+function M.apply_browser(opts)
+    opts = opts or {}
+    if opts.browser_name == nil and opts.browser == nil then
+        opts.browser_name = M.requested_browser()
+    end
+    local browser = opts.browser_name or opts.browser
+    if browser == "firefox" and opts.startup_timeout == nil then
+        opts.startup_timeout = 30
+    end
+    return opts
+end
 
 return M

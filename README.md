@@ -59,7 +59,8 @@ local LoginPage = require("pages.login_page")  -- or loadfile the path
 ## Tests
 
 ```bash
-lua run_tests.lua          -- local fixture suite (no Wikipedia)
+lua run_tests.lua          -- Chrome suites, then Firefox when geckodriver is present
+LUA_SELENIUM_BROWSER=firefox lua test_api.lua
 lua test.lua               -- Wikipedia smoke; skips if offline
 ```
 

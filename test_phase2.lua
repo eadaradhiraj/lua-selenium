@@ -59,7 +59,7 @@ local sauce = WebDriver.build_capabilities({
 })
 check_eq("sauce options name", sauce.alwaysMatch["sauce:options"].name, "lua-selenium")
 
-print("\nAuto-spawning ChromeDriver + fixture...")
+print("\nAuto-spawning " .. test.requested_browser() .. " + fixture...")
 local spawned_port
 local ok, err = xpcall(function()
     test.with_local_session({

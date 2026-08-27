@@ -135,3 +135,7 @@ What landed each pass, and what was left afterward.
 ### Iteration 11 — Firefox BiDi
 **Done:** `test_phase3.lua` (console, exceptions, `mock_request`) runs on Firefox; CDP still skipped there. `run_tests.lua` includes it in the Firefox pass. BiDi `session.subscribe` / `network.addIntercept` list fields go through `json_array` so lunajson emits JSON arrays. Firefox phase3: 11 passed.
 **Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only).
+
+### Iteration 12 — BiDi WebSocket RFC 6455 hardening
+**Done:** Handshake verifies `Sec-WebSocket-Accept` (RFC example vector in `test_phase3.lua`). Close frames send/parse a 2-byte code and reason (`close(code, reason)`, `close_status()`). RSV bits, fragmented control frames, and oversize control frames are rejected.
+**Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only).

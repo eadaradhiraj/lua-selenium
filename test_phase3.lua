@@ -23,6 +23,11 @@ pcall(function()
 end)
 check("contains string", true)
 
+print("\n[WebSocket handshake]")
+local WS = require("webdriver_ws")
+check("RFC 6455 Sec-WebSocket-Accept",
+    WS.sec_websocket_accept("dGhlIHNhbXBsZSBub25jZQ==") == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=")
+
 print("\nSession fixture with_local_session + BiDi (" .. test.requested_browser() .. ")...")
 local ok, err = xpcall(function()
     test.with_local_session({

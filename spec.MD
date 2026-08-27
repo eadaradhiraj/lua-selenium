@@ -34,7 +34,7 @@
   * Element screenshots and `shadow_root()`
 * **Navigation**: `back()`, `forward()`, `refresh()`, `get_page_source()`, `get_active_element()`.
 * **Script bridge**: `execute_script` / `execute_async_script` marshal `WebElement` arguments and wrap element results.
-* **Waits**: `wait_until` plus `WebDriver.EC` (`title_is`, `presence_of_element`, `visibility_of_element`, `element_to_be_clickable`, `alert_is_present`, …).
+* **Waits**: `wait_until` plus `WebDriver.EC` (`title_is`, `presence_of_element`, `visibility_of_element`, `element_to_be_clickable`, `alert_is_present`, `text_to_be_present_in_element`, `text_to_be_present_in_element_value`, `frame_to_be_available_and_switch_to_it`, `number_of_windows_to_be`, …).
 * **`<select>` helper**: `driver:select(element)` with `select_by_visible_text` / `select_by_value` / `select_by_index`.
 
 ### 5. Advanced Utilities
@@ -145,4 +145,8 @@ What landed each pass, and what was left afterward.
 
 ### Iteration 13 — W3C leftovers and launch/download config
 **Done:** `GET /status` (`driver:status` / `WebDriver.get_status`). `get_computed_role` / `get_computed_label`. Session caps `page_load_strategy`, `unhandled_prompt_behavior`, `proxy`, `strict_file_interactability`. Actions wheel source (`scroll` / `driver:scroll`). `download_dir`, Chrome `user_data_dir`, Firefox prefs, `wait_for_download`. Chrome and Firefox api/phase2 cover status, a11y, scroll, and a real file download.
+**Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only; GitHub Actions).
+
+### Iteration 14 — extra expected conditions
+**Done:** `EC.text_to_be_present_in_element`, `text_to_be_present_in_element_value`, `frame_to_be_available_and_switch_to_it` (locator, index, or element), `number_of_windows_to_be`. Covered in `test_api.lua` on Chrome and Firefox.
 **Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only; GitHub Actions).

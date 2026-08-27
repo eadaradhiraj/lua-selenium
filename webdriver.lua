@@ -1898,6 +1898,82 @@ function EC.alert_is_present()
     end
 end
 
+function EC.text_to_be_present_in_element(using, value, text)
+    local loc_using, loc_value, needle
+    if type(using) == "table" then
+        loc_using, loc_value = locator_args(using)
+        needle = value
+    else
+        loc_using, loc_value, needle = using, value, text
+    end
+    return function(d)
+        local ok, el = pcall(function()
+            return d:find_element(loc_using, loc_value)
+        end)
+        if not ok or not el then
+            return nil
+        end
+        local actual = el:get_text()
+        return type(actual) == "string" and actual:find(needle, 1, true) and actual
+    end
+end
+
+function EC.text_to_be_present_in_element_value(using, value, text)
+    local loc_using, loc_value, needle
+    if type(using) == "table" then
+        loc_using, loc_value = locator_args(using)
+        needle = value
+    else
+        loc_using, loc_value, needle = using, value, text
+    end
+    return function(d)
+        local ok, el = pcall(function()
+            return d:find_element(loc_using, loc_value)
+        end)
+        if not ok or not el then
+            return nil
+        end
+        local actual
+        pcall(function()
+            actual = el:get_property("value")
+        end)
+        if actual == nil or actual == false then
+            pcall(function()
+                actual = el:get_attribute("value")
+            end)
+        end
+        actual = tostring(actual or "")
+        return actual:find(needle, 1, true) and actual
+    end
+end
+
+-- Locator, frame index, or already-found element.
+function EC.frame_to_be_available_and_switch_to_it(using, value)
+    return function(d)
+        local ok, result = pcall(function()
+            if type(using) == "number" then
+                d:switch_to_frame(using)
+                return using
+            end
+            if type(using) == "table" and using.id and using.find_element then
+                d:switch_to_frame(using)
+                return using
+            end
+            local frame = d:find_element(using, value)
+            d:switch_to_frame(frame)
+            return frame
+        end)
+        return ok and result
+    end
+end
+
+function EC.number_of_windows_to_be(n)
+    return function(d)
+        local handles = d:get_window_handles()
+        return type(handles) == "table" and #handles == n and handles
+    end
+end
+
 -----------------------------------------------------------
 -- <select> helper
 -----------------------------------------------------------

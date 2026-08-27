@@ -151,6 +151,19 @@ local ok, err = xpcall(function()
         local clickable = driver:wait_until(WebDriver.EC.element_to_be_clickable(By.id("alert-btn")), 2)
         check("element_to_be_clickable", clickable ~= nil)
         check("invisibility_of_element", driver:wait_until(WebDriver.EC.invisibility_of_element(By.id("hidden-box")), 2) == true)
+        check("text_to_be_present_in_element", driver:wait_until(
+            WebDriver.EC.text_to_be_present_in_element(By.id("title"), "Fixture"), 2
+        ) ~= nil)
+        local box = driver:find_element(By.id("searchInput"))
+        pcall(function() box:clear() end)
+        box:send_keys("hello-ec")
+        check("text_to_be_present_in_element_value", driver:wait_until(
+            WebDriver.EC.text_to_be_present_in_element_value(By.id("searchInput"), "hello-ec"), 2
+        ) ~= nil)
+        driver:wait_until(WebDriver.EC.frame_to_be_available_and_switch_to_it(By.id("frame1")), 3)
+        check_eq("frame_to_be_available_and_switch_to_it", driver:find_element(By.id("inside")):get_text(), "in frame")
+        driver:switch_to_default_content()
+        check("number_of_windows_to_be 1", driver:wait_until(WebDriver.EC.number_of_windows_to_be(1), 2) ~= nil)
 
         local boom_ok, boom_err = pcall(function()
             driver:wait_until(function()

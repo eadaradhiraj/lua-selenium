@@ -48,7 +48,7 @@ WebDriver.new({
 })
 ```
 
-Timeouts: `wait_until` and `implicitly_wait` / `set_page_load_timeout` / `set_script_timeout` use **seconds**. `set_timeouts({ implicit = 2000 })` is raw W3C **milliseconds**.
+Timeouts: `wait_until` and `implicitly_wait` / `set_page_load_timeout` / `set_script_timeout` use **seconds**. `set_timeouts({ implicit = 2000 })` is raw W3C **milliseconds**. `WebDriver.EC` includes `text_to_be_present_in_element`, `text_to_be_present_in_element_value`, `frame_to_be_available_and_switch_to_it` (locator, index, or element), and `number_of_windows_to_be`, plus title/url/visibility helpers.
 
 `driver:wait_for_download("report.pdf")` polls `download_dir` until a finished file appears. `driver:scroll(0, 400)` is the W3C wheel action. `driver:status()` is `GET /status`.
 

@@ -6,14 +6,26 @@ Install with LuaRocks from this GitHub repo (nothing is published to luarocks.or
 
 ## Requirements
 
+To **install** (`luarocks install git+https://…`):
+
 - Lua 5.3+ (developed on 5.5)
-- LuaRocks modules: `luasocket`, `lunajson`, `luasec`
-- `chromedriver` on `PATH` (Chromium on Arch ships it). Firefox live tests also need `firefox` + `geckodriver`.
+- LuaRocks and **git**
+- A C compiler and OpenSSL headers (`base-devel` + `openssl` on Arch) so LuaRocks can build `luasocket` and `luasec`
+- `lunajson` is pure Lua; LuaRocks fetches all three rocks from luarocks.org as dependencies — you do not install them by hand
+
+To **run** a session (auto-spawn):
+
+- A browser **and** its driver on `PATH`: Chromium/Chrome + `chromedriver`, or Firefox + `geckodriver`
+- POSIX `sh` (Linux/macOS). The driver is spawned with a shell pipe
+
+`luasec` is only used for `https://` remote grids and `wss://` BiDi. Local `http://127.0.0.1` ChromeDriver talks HTTP. `utf8`, `ltn12`, and `mime` come with Lua 5.3+ / luasocket. Busted is not required.
 
 ```bash
-sudo pacman -S lua luarocks chromium
-sudo luarocks install luasocket lunajson luasec
+sudo pacman -S lua luarocks git base-devel openssl chromium chromedriver
+luarocks install git+https://github.com/eadaradhiraj/lua-selenium.git#v0.1.0
 ```
+
+Firefox tests also need `firefox` and `geckodriver`. The installed rock is the library only; `lua tests/run.lua` needs a git clone of this repo.
 
 ## Quick start
 

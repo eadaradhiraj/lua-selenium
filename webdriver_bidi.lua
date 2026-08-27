@@ -5,6 +5,20 @@ local WebSocket = require("webdriver_ws")
 local BiDi = {}
 BiDi.__index = BiDi
 
+-- lunajson encodes {} as an object; BiDi list fields need a real JSON array.
+local function json_array(tbl)
+    local out = {}
+    if type(tbl) == "table" then
+        for i, v in ipairs(tbl) do
+            out[i] = v
+        end
+    end
+    if #out == 0 then
+        out[0] = 0
+    end
+    return out
+end
+
 local function encode_headers(headers)
     local out = {}
     if not headers then
@@ -168,9 +182,9 @@ function BiDi:send(method, params)
 end
 
 function BiDi:subscribe(events, contexts)
-    local params = { events = events }
+    local params = { events = json_array(events) }
     if contexts then
-        params.contexts = contexts
+        params.contexts = json_array(contexts)
     end
     return self:send("session.subscribe", params)
 end
@@ -205,10 +219,10 @@ end
 function BiDi:mock_request(url_pattern, response)
     table.insert(self.mocks, { pattern = url_pattern, response = response or {} })
     local result = self:send("network.addIntercept", {
-        phases = { "beforeRequestSent" },
-        urlPatterns = {
+        phases = json_array({ "beforeRequestSent" }),
+        urlPatterns = json_array({
             { type = "string", pattern = url_pattern }
-        }
+        })
     })
     self.intercept_id = result and result.intercept
     return self

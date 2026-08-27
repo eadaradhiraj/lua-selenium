@@ -62,7 +62,7 @@
 * **Test runners**: `webdriver_test` assertions (`equal`, `contains`, `matches`), `with_driver`, and `with_local_session` (HTTP fixture + session). Busted example in `spec/webdriver_spec.lua`.
 * **Page Object Model**: `driver:page({ locators })` and `Page.extend({ locators })` with `el` / `els` / `type` / `click` / `component` for nested regions. `Page.generate(driver, { name, url, out })` / `driver:generate_page` scans the current page for stable locators and writes a `Page.extend` module.
 * **Shadow DOM**: open roots via `element:shadow_root()`. Closed roots via `shadow_root({ pierce = true })` / `pierce_shadow()` / `find_in_shadow` (Chromium CDP). Slot helpers: `assigned_slot`, `assigned_nodes`, `assigned_elements`.
-* **Live browsers**: `run_tests.lua` runs the local suites on Chrome, then again on Firefox (`LUA_SELENIUM_BROWSER=firefox`) when `geckodriver` is on PATH. Shadow-root finds use W3C `/shadow/{id}/element` (Gecko requires it). CDP pierce, BiDi mocks, and `goog:loggingPrefs` stay Chromium-only. Safari is out of scope.
+* **Live browsers**: `run_tests.lua` runs the local suites on Chrome, then again on Firefox (`LUA_SELENIUM_BROWSER=firefox`) when `geckodriver` is on PATH. That includes BiDi console logs and `mock_request`. Shadow-root finds use W3C `/shadow/{id}/element` (Gecko requires it). CDP pierce and `goog:loggingPrefs` stay Chromium-only. Safari is out of scope.
 * **Packaging**: unversioned `luaselenium-scm-1.rockspec` (`luarocks make`). No release version until the API is stable. LuaRocks upload is deferred.
 
 ---
@@ -73,7 +73,6 @@ Still open; no release version until these are settled or explicitly deferred.
 
 * **LuaRocks publish**: deferred (no upload until explicitly requested). SCM rockspec only.
 * **Safari**: out of scope. `safaridriver` is macOS-only.
-* **Firefox BiDi**: console/network mock suite (`test_phase3.lua`) is still Chrome-only.
 * **Closed-shadow pierce**: Chromium CDP only; Gecko does not expose closed trees.
 
 ```text
@@ -132,3 +131,7 @@ What landed each pass, and what was left afterward.
 ### Iteration 10 — Firefox parity on the real suites
 **Done:** `LUA_SELENIUM_BROWSER` selects Chrome or Firefox for `with_local_session` / `with_driver`. `run_tests.lua` runs api/phase1/phase2/pom on Firefox after Chrome. Shadow-root `find_element` uses W3C `/shadow/{id}/element` so Gecko can search open trees (Chrome still works via fallback). Closed pierce, CDP, and `goog:loggingPrefs` stay Chromium-only. Safari dropped from the live suite. Firefox passed api (46), phase1 (36), phase2 (24), pom (20).
 **Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; Firefox BiDi; closed pierce Chromium-only).
+
+### Iteration 11 — Firefox BiDi
+**Done:** `test_phase3.lua` (console, exceptions, `mock_request`) runs on Firefox; CDP still skipped there. `run_tests.lua` includes it in the Firefox pass. BiDi `session.subscribe` / `network.addIntercept` list fields go through `json_array` so lunajson emits JSON arrays. Firefox phase3: 11 passed.
+**Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only).

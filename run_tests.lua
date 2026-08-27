@@ -13,6 +13,7 @@ local firefox_tests = {
     "test_api.lua",
     "test_phase1.lua",
     "test_phase2.lua",
+    "test_phase3.lua",
     "test_pom.lua",
 }
 

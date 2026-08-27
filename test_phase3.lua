@@ -23,7 +23,7 @@ pcall(function()
 end)
 check("contains string", true)
 
-print("\nSession fixture with_local_session + BiDi...")
+print("\nSession fixture with_local_session + BiDi (" .. test.requested_browser() .. ")...")
 local ok, err = xpcall(function()
     test.with_local_session({
         fixture_port = 8767,

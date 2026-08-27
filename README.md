@@ -39,7 +39,7 @@ lua example.lua
 WebDriver.new({
     headless = true,
     browser_name = "chrome",   -- firefox, safari, edge
-    bidi = true,               -- WebSocket BiDi (console, mock_request)
+    bidi = true,               -- WebSocket BiDi (Chrome and Firefox: console, mock_request)
     server_url = "http://127.0.0.1:9515",  -- attach instead of spawning
     args = { "--no-sandbox" },
 })

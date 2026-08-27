@@ -49,10 +49,11 @@
 * **Frame / iFrame Switching**: `switch_to_frame` (element, index, or default), `switch_to_parent_frame`, `switch_to_default_content`.
 * **Alert / Dialog Handling**: `driver:alert():get_text()`, `:accept()`, `:dismiss()`, `:send_keys()`.
 * **Cookie Engine**: `get_cookies`, `get_cookie`, `add_cookie`, `delete_cookie`, `delete_all_cookies`.
-* **Timeout Configuration**: `get_timeouts` / `set_timeouts` for implicit, page load, and script timeouts (milliseconds).
+* **Timeout Configuration**: `get_timeouts` / `set_timeouts` for implicit, page load, and script timeouts (milliseconds). Session create: `page_load_strategy`, `unhandled_prompt_behavior`, `proxy`, `strict_file_interactability`, `platform_name`, `timeouts`.
+* **Status / a11y**: `driver:status()` / `WebDriver.get_status(url)` (`GET /status`). `element:get_computed_role()` / `get_computed_label()`.
 
 ### 7. Advanced Interaction & Driver Automation (Phase 2)
-* **W3C Actions API**: Fluent `driver:actions()` chain (`move_to`, `click`, `double_click`, `context_click`, `drag_and_drop`, `key_down` / `key_up`, `send_keys`) posted to `/session/{id}/actions`. Shortcuts: `element:hover()`, `:double_click()`, `:context_click()`, `driver:drag_and_drop(src, dest)`. `WebDriver.Keys` holds W3C key code points.
+* **W3C Actions API**: Fluent `driver:actions()` chain (`move_to`, `click`, `double_click`, `context_click`, `drag_and_drop`, `key_down` / `key_up`, `send_keys`, `scroll`) posted to `/session/{id}/actions`. Pointer, key, and wheel sources share ticks. Shortcuts: `element:hover()`, `:double_click()`, `:context_click()`, `driver:drag_and_drop(src, dest)`, `driver:scroll(dx, dy)`. `WebDriver.Keys` holds W3C key code points.
 * **Automatic Driver Lifecycle**: If no `server_url` is given, spawn `chromedriver` / `geckodriver` / `safaridriver` on a free port. The process is tied to a pipe so `quit()`, `__close` (`<close>`), and GC of the driver object kill it.
 * **Multi-Browser Capabilities**: `goog:chromeOptions`, `moz:firefoxOptions`, `safari:options`, `ms:edgeOptions`, plus `bstack:options` / `sauce:options`. Remote URLs via `provider = "browserstack"|"saucelabs"`, `grid_url`, or `username`/`access_key`. HTTPS via luasec.
 
@@ -63,6 +64,7 @@
 * **Page Object Model**: `driver:page({ locators })` and `Page.extend({ locators })` with `el` / `els` / `type` / `click` / `component` for nested regions. `Page.generate(driver, { name, url, out })` / `driver:generate_page` scans the current page for stable locators and writes a `Page.extend` module.
 * **Shadow DOM**: open roots via `element:shadow_root()`; finds from a shadow root use W3C `POST /shadow/{id}/element` (required by Gecko). Closed roots via `shadow_root({ pierce = true })` / `pierce_shadow()` / `find_in_shadow` (Chromium CDP). Slot helpers: `assigned_slot`, `assigned_nodes`, `assigned_elements`.
 * **Live browsers**: `run_tests.lua` runs the local suites on Chrome, then again on Firefox (`LUA_SELENIUM_BROWSER=firefox`) when `geckodriver` is on PATH. That includes BiDi console logs and `mock_request`. Shadow-root finds use W3C `/shadow/{id}/element` (Gecko requires it). CDP pierce and `goog:loggingPrefs` stay Chromium-only. Safari is out of scope.
+* **Launch / downloads**: `download_dir` (Chrome prefs + CDP `setDownloadBehavior`, Firefox `moz:firefoxOptions.prefs`). `user_data_dir` (Chrome/Edge `--user-data-dir`). `firefox_prefs` / `chrome_prefs`. `driver:wait_for_download(name, timeout)` waits for a finished file (ignores `.crdownload` / `.part`, requires stable non-empty size).
 * **Packaging**: unversioned `luaselenium-scm-1.rockspec` (`luarocks make`). No release version until the API is stable. LuaRocks upload is deferred.
 
 ---
@@ -74,6 +76,7 @@ Still open; no release version until these are settled or explicitly deferred.
 * **LuaRocks publish**: deferred (no upload until explicitly requested). SCM rockspec only.
 * **Safari**: out of scope. `safaridriver` is macOS-only.
 * **Closed-shadow pierce**: Chromium CDP only; Gecko does not expose closed trees.
+* **CI**: no GitHub Actions workflow yet for `lua run_tests.lua`.
 
 ```text
 +-------------------------------------------------------------------------------+
@@ -139,3 +142,7 @@ What landed each pass, and what was left afterward.
 ### Iteration 12 — BiDi WebSocket RFC 6455 hardening
 **Done:** Handshake verifies `Sec-WebSocket-Accept` (RFC example vector in `test_phase3.lua`). Close frames send/parse a 2-byte code and reason (`close(code, reason)`, `close_status()`). RSV bits, fragmented control frames, and oversize control frames are rejected. Part 1 BiDi/WebSocket (and env / shadow-find) text brought in line with the code.
 **Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only).
+
+### Iteration 13 — W3C leftovers and launch/download config
+**Done:** `GET /status` (`driver:status` / `WebDriver.get_status`). `get_computed_role` / `get_computed_label`. Session caps `page_load_strategy`, `unhandled_prompt_behavior`, `proxy`, `strict_file_interactability`. Actions wheel source (`scroll` / `driver:scroll`). `download_dir`, Chrome `user_data_dir`, Firefox prefs, `wait_for_download`. Chrome and Firefox api/phase2 cover status, a11y, scroll, and a real file download.
+**Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only; GitHub Actions).

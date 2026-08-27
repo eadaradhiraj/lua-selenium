@@ -169,6 +169,15 @@ local function copy_table(src)
     return dst
 end
 
+local function merge_prefs(dst, src)
+    dst = dst or {}
+    if not src then return dst end
+    for k, v in pairs(src) do
+        dst[k] = v
+    end
+    return dst
+end
+
 local function append_args(dst, src)
     if not src then return dst end
     for _, arg in ipairs(src) do
@@ -179,6 +188,13 @@ end
 
 local function shell_quote(s)
     return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
+local function ensure_dir(path)
+    if type(path) ~= "string" or path == "" then
+        return
+    end
+    os.execute("mkdir -p " .. shell_quote(path))
 end
 
 local function normalize_browser(name)
@@ -365,12 +381,37 @@ local function build_always_match(options)
     local browser = normalize_browser(options.browser_name or options.browser)
     local headless = options.headless == true
     local extra_args = options.args
+    local download_dir = options.download_dir
+    if download_dir then
+        ensure_dir(download_dir)
+    end
+    if options.user_data_dir then
+        ensure_dir(options.user_data_dir)
+    end
 
     local always = {
         browserName = browser
     }
     if options.accept_insecure_certs then
         always.acceptInsecureCerts = true
+    end
+    if options.page_load_strategy then
+        always.pageLoadStrategy = options.page_load_strategy
+    end
+    if options.unhandled_prompt_behavior then
+        always.unhandledPromptBehavior = options.unhandled_prompt_behavior
+    end
+    if options.proxy then
+        always.proxy = options.proxy
+    end
+    if options.strict_file_interactability ~= nil then
+        always.strictFileInteractability = options.strict_file_interactability
+    end
+    if options.platform_name then
+        always.platformName = options.platform_name
+    end
+    if options.timeouts then
+        always.timeouts = options.timeouts
     end
 
     if browser == "chrome" then
@@ -381,10 +422,20 @@ local function build_always_match(options)
             table.insert(args, "--disable-gpu")
             table.insert(args, "--window-size=1920,1080")
         end
+        if options.user_data_dir then
+            table.insert(args, "--user-data-dir=" .. options.user_data_dir)
+        end
         append_args(args, chrome.args)
         append_args(args, extra_args)
         chrome.args = json_array(args)
         if options.binary then chrome.binary = options.binary end
+        chrome.prefs = merge_prefs(chrome.prefs, options.chrome_prefs or options.prefs)
+        if download_dir then
+            chrome.prefs["download.default_directory"] = download_dir
+            chrome.prefs["download.prompt_for_download"] = false
+            chrome.prefs["download.directory_upgrade"] = true
+            chrome.prefs["safebrowsing.enabled"] = true
+        end
         always["goog:chromeOptions"] = chrome
     elseif browser == "firefox" then
         local ff = copy_table(options.firefox_options)
@@ -396,6 +447,21 @@ local function build_always_match(options)
         append_args(args, extra_args)
         ff.args = json_array(args)
         if options.binary then ff.binary = options.binary end
+        ff.prefs = merge_prefs(ff.prefs, options.firefox_prefs or options.prefs)
+        if download_dir then
+            ff.prefs["browser.download.folderList"] = 2
+            ff.prefs["browser.download.dir"] = download_dir
+            ff.prefs["browser.download.useDownloadDir"] = true
+            ff.prefs["browser.helperApps.neverAsk.saveToDisk"] =
+                "application/octet-stream,text/plain,text/csv,application/pdf,application/json"
+            ff.prefs["pdfjs.disabled"] = true
+            ff.prefs["browser.download.manager.showWhenStarting"] = false
+            ff.prefs["browser.download.alwaysOpenPanel"] = false
+            ff.prefs["browser.download.always_ask_before_handling_new_types"] = false
+        end
+        if options.firefox_profile then
+            ff.profile = options.firefox_profile
+        end
         always["moz:firefoxOptions"] = ff
     elseif browser == "safari" then
         always["safari:options"] = copy_table(options.safari_options)
@@ -406,10 +472,18 @@ local function build_always_match(options)
             table.insert(args, "--headless=new")
             table.insert(args, "--disable-gpu")
         end
+        if options.user_data_dir then
+            table.insert(args, "--user-data-dir=" .. options.user_data_dir)
+        end
         append_args(args, edge.args)
         append_args(args, extra_args)
         edge.args = json_array(args)
         if options.binary then edge.binary = options.binary end
+        edge.prefs = merge_prefs(edge.prefs, options.chrome_prefs or options.prefs)
+        if download_dir then
+            edge.prefs["download.default_directory"] = download_dir
+            edge.prefs["download.prompt_for_download"] = false
+        end
         always["ms:edgeOptions"] = edge
     end
 
@@ -661,16 +735,124 @@ function WebDriver.new(options, browser_name)
     local session_id = res.sessionId
     local capabilities = res.capabilities or {}
 
-    return setmetatable({
+    local driver = setmetatable({
         server_url = server_url,
         session_id = session_id,
         capabilities = capabilities,
         websocket_url = capabilities.webSocketUrl,
         base_url = server_url .. "/session/" .. session_id,
         browser_name = browser,
+        download_dir = options.download_dir,
+        user_data_dir = options.user_data_dir,
         _proc = proc,
         _managed = proc ~= nil,
     }, WebDriver)
+    if driver.download_dir then
+        pcall(function()
+            driver:_allow_downloads()
+        end)
+    end
+    return driver
+end
+
+function WebDriver.get_status(server_url)
+    if type(server_url) == "table" then
+        server_url = server_url.server_url
+    end
+    if not server_url then
+        error("WebDriver.get_status requires a server_url")
+    end
+    return request("GET", server_url .. "/status")
+end
+
+function WebDriver:status()
+    return WebDriver.get_status(self.server_url)
+end
+
+function WebDriver:_allow_downloads()
+    local dir = self.download_dir
+    if not dir or not self:is_chromium() then
+        return
+    end
+    pcall(function()
+        self:execute_cdp("Browser.setDownloadBehavior", {
+            behavior = "allow",
+            downloadPath = dir,
+            eventsEnabled = true,
+        })
+    end)
+    pcall(function()
+        self:execute_cdp("Page.setDownloadBehavior", {
+            behavior = "allow",
+            downloadPath = dir,
+        })
+    end)
+end
+
+local function list_download_names(dir)
+    local names = {}
+    local handle = io.popen("find " .. shell_quote(dir) .. " -maxdepth 1 -type f 2>/dev/null")
+    if not handle then
+        return names
+    end
+    for line in handle:lines() do
+        local name = line:match("([^/]+)$")
+        if name and #name > 0 then
+            names[#names + 1] = name
+        end
+    end
+    handle:close()
+    return names
+end
+
+local function is_incomplete_download(name)
+    return name:find("%.crdownload$") or name:find("%.part$") or name:find("%.tmp$")
+end
+
+local function file_size(path)
+    local f = io.open(path, "rb")
+    if not f then
+        return nil
+    end
+    local size = f:seek("end")
+    f:close()
+    return size
+end
+
+-- Wait until a finished file appears in download_dir.
+-- want: filename, substring, predicate(name), or nil for any completed file.
+-- Returns the absolute path.
+function WebDriver:wait_for_download(want, timeout_sec)
+    local dir = self.download_dir or error("wait_for_download requires download_dir on the session")
+    timeout_sec = timeout_sec or 10
+    local deadline = socket.gettime() + timeout_sec
+    local last_path, last_size
+    while socket.gettime() < deadline do
+        for _, name in ipairs(list_download_names(dir)) do
+            if not is_incomplete_download(name) then
+                local ok = false
+                if want == nil then
+                    ok = true
+                elseif type(want) == "function" then
+                    ok = want(name)
+                elseif type(want) == "string" then
+                    ok = name == want or name:find(want, 1, true) ~= nil
+                end
+                if ok then
+                    local path = dir .. "/" .. name
+                    local size = file_size(path)
+                    if size and size > 0 then
+                        if last_path == path and last_size == size then
+                            return path
+                        end
+                        last_path, last_size = path, size
+                    end
+                end
+            end
+        end
+        socket.sleep(0.15)
+    end
+    error("Timeout waiting for download in " .. dir)
 end
 
 function WebDriver:stop_service()
@@ -1103,25 +1285,34 @@ function Actions.new(driver)
         driver = driver,
         pointer = {},
         key = {},
+        wheel = {},
     }, Actions)
 end
 
-function Actions:_pointer(action)
-    table.insert(self.pointer, action)
-    table.insert(self.key, { type = "pause", duration = action.duration or 0 })
+function Actions:_tick(source, action)
+    local duration = action.duration or 0
+    table.insert(self[source], action)
+    for _, name in ipairs({ "pointer", "key", "wheel" }) do
+        if name ~= source then
+            table.insert(self[name], { type = "pause", duration = duration })
+        end
+    end
     return self
 end
 
+function Actions:_pointer(action)
+    return self:_tick("pointer", action)
+end
+
 function Actions:_key(action)
-    table.insert(self.key, action)
-    table.insert(self.pointer, { type = "pause", duration = action.duration or 0 })
-    return self
+    return self:_tick("key", action)
 end
 
 function Actions:pause(ms)
     ms = ms or 0
     table.insert(self.pointer, { type = "pause", duration = ms })
     table.insert(self.key, { type = "pause", duration = ms })
+    table.insert(self.wheel, { type = "pause", duration = ms })
     return self
 end
 
@@ -1201,6 +1392,24 @@ function Actions:send_keys(text)
     return self
 end
 
+-- W3C wheel source. origin is "viewport", "pointer", or a WebElement.
+function Actions:scroll(opts)
+    opts = opts or {}
+    local origin = opts.origin or "viewport"
+    if type(origin) == "table" and origin.id then
+        origin = element_ref(origin)
+    end
+    return self:_tick("wheel", {
+        type = "scroll",
+        origin = origin,
+        x = opts.x or 0,
+        y = opts.y or 0,
+        deltaX = opts.deltaX or opts.dx or 0,
+        deltaY = opts.deltaY or opts.dy or 0,
+        duration = opts.duration or 100,
+    })
+end
+
 function Actions:perform()
     local sources = {}
     if not all_pauses(self.pointer) then
@@ -1218,11 +1427,19 @@ function Actions:perform()
             actions = json_array(self.key)
         })
     end
+    if not all_pauses(self.wheel) then
+        table.insert(sources, {
+            type = "wheel",
+            id = "wheel",
+            actions = json_array(self.wheel)
+        })
+    end
     request("POST", self.driver.base_url .. "/actions", {
         actions = json_array(sources)
     })
     self.pointer = {}
     self.key = {}
+    self.wheel = {}
     return self.driver
 end
 
@@ -1237,6 +1454,13 @@ end
 
 function WebDriver:drag_and_drop(source, target)
     return Actions.new(self):drag_and_drop(source, target):perform()
+end
+
+function WebDriver:scroll(dx, dy, opts)
+    opts = opts or {}
+    opts.deltaX = dx or opts.deltaX or 0
+    opts.deltaY = dy or opts.deltaY or 0
+    return Actions.new(self):scroll(opts):perform()
 end
 
 -----------------------------------------------------------
@@ -1363,6 +1587,14 @@ end
 
 function WebElement:is_selected()
     return request("GET", self.base_url .. "/selected") == true
+end
+
+function WebElement:get_computed_role()
+    return request("GET", self.base_url .. "/computedrole")
+end
+
+function WebElement:get_computed_label()
+    return request("GET", self.base_url .. "/computedlabel")
 end
 
 function WebElement:is_displayed()

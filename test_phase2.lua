@@ -59,6 +59,31 @@ local sauce = WebDriver.build_capabilities({
 })
 check_eq("sauce options name", sauce.alwaysMatch["sauce:options"].name, "lua-selenium")
 
+local eager = WebDriver.build_capabilities({ page_load_strategy = "eager" })
+check_eq("pageLoadStrategy", eager.alwaysMatch.pageLoadStrategy, "eager")
+local prompt = WebDriver.build_capabilities({ unhandled_prompt_behavior = "ignore" })
+check_eq("unhandledPromptBehavior", prompt.alwaysMatch.unhandledPromptBehavior, "ignore")
+local proxied = WebDriver.build_capabilities({
+    proxy = { proxyType = "manual", httpProxy = "127.0.0.1:8080" }
+})
+check_eq("proxy type", proxied.alwaysMatch.proxy.proxyType, "manual")
+
+local chrome_ud = WebDriver.build_capabilities({
+    browser_name = "chrome",
+    user_data_dir = "/tmp/lua-selenium-profile",
+})
+local ud_arg = false
+for _, a in ipairs(chrome_ud.alwaysMatch["goog:chromeOptions"].args) do
+    if tostring(a):find("user-data-dir=/tmp/lua-selenium-profile", 1, true) then ud_arg = true end
+end
+check("chrome user-data-dir arg", ud_arg)
+
+local ff_dl = WebDriver.build_capabilities({
+    browser = "firefox",
+    download_dir = "/tmp/lua-selenium-dl-caps",
+})
+check_eq("firefox download pref", ff_dl.alwaysMatch["moz:firefoxOptions"].prefs["browser.download.dir"], "/tmp/lua-selenium-dl-caps")
+
 print("\nAuto-spawning " .. test.requested_browser() .. " + fixture...")
 local spawned_port
 local ok, err = xpcall(function()
@@ -117,6 +142,11 @@ local ok, err = xpcall(function()
         :key_up(Keys.SHIFT)
         :perform()
     check_eq("Shift+Click", attr("shift-target", "data-shift"), "1")
+
+    print("\n[Actions: wheel scroll]")
+    driver:scroll(0, 500)
+    local y = driver:execute_script("return window.scrollY || window.pageYOffset || 0;")
+    check("scrolled down", type(y) == "number" and y > 50, "scrollY=" .. tostring(y))
 
     print("\n[Driver lifecycle]")
     check("port open while running", spawned_port ~= nil)

@@ -36,9 +36,19 @@ local function stop_fixture()
     end
 end
 
+local dl_dir = string.format("/tmp/lua-selenium-dl-%d", math.floor(socket.gettime() * 1000))
+
 local ok, err = xpcall(function()
-    test.with_driver({ headless = true, spawn = true, port = 9518 }, function(driver)
+    test.with_driver({ headless = true, spawn = true, port = 9518, download_dir = dl_dir }, function(driver)
         driver:get(fixture_url)
+
+        print("\n[Status / a11y]")
+        local st = driver:status()
+        check("GET /status", type(st) == "table" and type(st.ready) == "boolean", "got " .. tostring(st and st.ready))
+        local role = driver:find_element(By.id("title")):get_computed_role()
+        check("computedrole heading", role == "heading" or tostring(role):find("heading", 1, true) ~= nil, "got " .. tostring(role))
+        local label = driver:find_element(By.id("title")):get_computed_label()
+        check("computedlabel", type(label) == "string" and #label > 0, "got " .. tostring(label))
 
         print("\n[Navigation / source]")
         check_eq("EC.title_is", driver:wait_until(WebDriver.EC.title_is("Lua Selenium Fixture"), 2), "Lua Selenium Fixture")
@@ -165,6 +175,21 @@ local ok, err = xpcall(function()
         driver:find_element(By.id("submit-field")):submit()
         local submitted = driver:execute_script("return window.__submitted === true;")
         check("element:submit", submitted == true)
+
+        print("\n[Scroll / download]")
+        driver:execute_script("window.scrollTo(0,0);")
+        driver:scroll(0, 600)
+        local y = driver:execute_script("return window.scrollY || window.pageYOffset || 0;")
+        check("driver:scroll", type(y) == "number" and y > 50, "scrollY=" .. tostring(y))
+
+        driver:get(fixture_url)
+        driver:find_element(By.id("download-link")):click()
+        local path = driver:wait_for_download("lua-selenium", 8)
+        local f = io.open(path, "r")
+        local body = f and f:read("*a") or ""
+        if f then f:close() end
+        check("download file", body:find("hello lua-selenium download", 1, true) ~= nil,
+            (path or "") .. " body=" .. tostring(body):sub(1, 120))
     end)
 end, debug.traceback)
 
@@ -174,6 +199,7 @@ if not ok then
 end
 
 stop_fixture()
+os.execute("rm -rf " .. dl_dir)
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then os.exit(1) end
 print("[+] API tests completed successfully!")

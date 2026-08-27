@@ -42,10 +42,15 @@ WebDriver.new({
     bidi = true,               -- WebSocket BiDi (Chrome and Firefox: console, mock_request)
     server_url = "http://127.0.0.1:9515",  -- attach instead of spawning
     args = { "--no-sandbox" },
+    download_dir = "/tmp/downloads",
+    user_data_dir = "/tmp/chrome-profile",  -- Chrome/Edge
+    page_load_strategy = "normal",
 })
 ```
 
 Timeouts: `wait_until` and `implicitly_wait` / `set_page_load_timeout` / `set_script_timeout` use **seconds**. `set_timeouts({ implicit = 2000 })` is raw W3C **milliseconds**.
+
+`driver:wait_for_download("report.pdf")` polls `download_dir` until a finished file appears. `driver:scroll(0, 400)` is the W3C wheel action. `driver:status()` is `GET /status`.
 
 Closed shadow trees (Chrome/Edge): `host:shadow_root({ pierce = true })` or `host:find_in_shadow(By.id("inside"))`. Open roots work with `host:shadow_root()` on all browsers.
 

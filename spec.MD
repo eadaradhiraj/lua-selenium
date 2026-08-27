@@ -70,7 +70,6 @@
 Still open; no release version until these are settled or explicitly deferred.
 
 * **LuaRocks publish**: `luarocks upload` of a numbered rock (blocked on API stability + account). SCM rockspec only for now.
-* **Test DRY**: `test_phase1.lua` / `test_phase2.lua` / `test_phase3.lua` still start the fixture server by hand instead of `with_local_session`.
 * **Classic log endpoint**: `GET /session/{id}/log` / Chrome log types as a fallback when BiDi is off.
 * **Closed shadow roots / slotted content**: only open shadow roots are tested.
 * **Page Object extras**: load URL from `Page.extend({ url })` in more examples; no generator/scaffolding.
@@ -116,3 +115,7 @@ What landed each pass, and what was left afterward.
 ### Iteration 6 — switch_to, wait errors, extra EC, print, offline skip
 **Done:** `driver:switch_to():frame/window/alert/default_content/parent_frame/active_element`. `wait_until` appends the last condition error on timeout. `EC.url_is`, `EC.staleness_of`, `EC.invisibility_of_element`. `print_page()` (W3C PDF). `test.lua` / `test_advanced.lua` skip when Wikipedia is unreachable; advanced test auto-spawns ChromeDriver. `webdriver_test.reachable`. `close_window` retries once (Chrome can stall under load).
 **Yet to do:** Items in Part 2 (LuaRocks upload, test DRY, classic logs, closed shadow, POM extras, README).
+
+### Iteration 7 — DRY local suites onto with_local_session
+**Done:** `test_phase1.lua`, `test_phase2.lua`, and `test_phase3.lua` start the HTML fixture and Chrome through `webdriver_test.with_local_session` (no hand-rolled pid files). Phase 1 no longer depends on a pre-existing chromedriver on 9515.
+**Yet to do:** Items in Part 2 (LuaRocks upload, classic logs, closed shadow, POM extras, README).

@@ -1,6 +1,4 @@
-local WebDriver = require("webdriver")
 local test = require("webdriver_test")
-local socket = require("socket")
 
 local passed = 0
 local failed = 0
@@ -25,31 +23,15 @@ pcall(function()
 end)
 check("contains string", true)
 
-print("\nStarting fixture server...")
-os.execute("lua fixture_server.lua 8767 >/tmp/lua-selenium-fixture3.log 2>&1 & echo $! >/tmp/lua-selenium-fixture3.pid")
-socket.sleep(0.3)
-local fixture_url = "http://127.0.0.1:8767/"
-local api_url = "http://127.0.0.1:8767/api.json"
-
-local function stop_fixture()
-    local pid_file = io.open("/tmp/lua-selenium-fixture3.pid", "r")
-    if pid_file then
-        local pid = pid_file:read("*l")
-        pid_file:close()
-        if pid and #pid > 0 then
-            os.execute("kill " .. pid .. " >/dev/null 2>&1")
-        end
-    end
-end
-
-print("Session fixture with_driver + BiDi...")
+print("\nSession fixture with_local_session + BiDi...")
 local ok, err = xpcall(function()
-    test.with_driver({
-        headless = true,
+    test.with_local_session({
+        fixture_port = 8767,
         spawn = true,
         port = 9517,
         bidi = true,
-    }, function(driver)
+    }, function(driver, fixture_url)
+        local api_url = fixture_url:gsub("/$", "") .. "/api.json"
         check("websocket url present", type(driver.websocket_url) == "string" and #driver.websocket_url > 0, driver.websocket_url)
 
         driver:get(fixture_url)
@@ -114,8 +96,6 @@ if not ok then
     failed = failed + 1
     print("\nERROR: " .. tostring(err))
 end
-
-stop_fixture()
 
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then

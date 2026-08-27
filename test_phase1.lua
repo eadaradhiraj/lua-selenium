@@ -1,6 +1,6 @@
 local WebDriver = require("webdriver")
 local By = WebDriver.By
-local socket = require("socket")
+local test = require("webdriver_test")
 
 local passed = 0
 local failed = 0
@@ -20,38 +20,13 @@ local function check_eq(name, actual, expected)
     check(name, ok, "expected " .. tostring(expected) .. ", got " .. tostring(actual))
 end
 
-print("Starting fixture server...")
-os.execute("lua fixture_server.lua 8765 >/tmp/lua-selenium-fixture.log 2>&1 & echo $! >/tmp/lua-selenium-fixture.pid")
-socket.sleep(0.3)
-
-local tcp = socket.tcp()
-tcp:settimeout(2)
-local connected = tcp:connect("127.0.0.1", 8765)
-tcp:close()
-assert(connected, "fixture server did not start on port 8765")
-
-local fixture_url = "http://127.0.0.1:8765/"
-
 print("Launching Chrome (headless)...")
-local driver = WebDriver.new({
-    server_url = "http://127.0.0.1:9515",
-    browser_name = "chrome",
-    headless = true
-})
-
-local function cleanup()
-    pcall(function() driver:quit() end)
-    local pid_file = io.open("/tmp/lua-selenium-fixture.pid", "r")
-    if pid_file then
-        local pid = pid_file:read("*l")
-        pid_file:close()
-        if pid and #pid > 0 then
-            os.execute("kill " .. pid .. " >/dev/null 2>&1")
-        end
-    end
-end
-
-local ok, err = pcall(function()
+local ok, err = xpcall(function()
+    test.with_local_session({
+        fixture_port = 8765,
+        spawn = true,
+        port = 9520,
+    }, function(driver, fixture_url)
     print("\n[Timeouts]")
     driver:set_timeouts({ implicit = 2000, page_load = 30000, script = 15000 })
     local timeouts = driver:get_timeouts()
@@ -179,15 +154,14 @@ local ok, err = pcall(function()
     for _, c in ipairs(after_delete) do
         if c.name == "lua_session" then still_there = true end
     end
-    check("cookie deleted", not still_there)
-end)
+        check("cookie deleted", not still_there)
+    end)
+end, debug.traceback)
 
 if not ok then
     failed = failed + 1
     print("\nERROR: " .. tostring(err))
 end
-
-cleanup()
 
 print(string.format("\n%d passed, %d failed", passed, failed))
 if failed > 0 then

@@ -1,6 +1,7 @@
 local WebDriver = require("webdriver")
 local By = WebDriver.By
 local Keys = WebDriver.Keys
+local test = require("webdriver_test")
 local socket = require("socket")
 
 local passed = 0
@@ -58,48 +59,24 @@ local sauce = WebDriver.build_capabilities({
 })
 check_eq("sauce options name", sauce.alwaysMatch["sauce:options"].name, "lua-selenium")
 
-print("\nStarting fixture server...")
-os.execute("lua fixture_server.lua 8766 >/tmp/lua-selenium-fixture2.log 2>&1 & echo $! >/tmp/lua-selenium-fixture2.pid")
-socket.sleep(0.3)
+print("\nAuto-spawning ChromeDriver + fixture...")
+local spawned_port
+local ok, err = xpcall(function()
+    test.with_local_session({
+        fixture_port = 8766,
+        spawn = true,
+        port = 9516,
+    }, function(driver, fixture_url)
+        check("managed spawn", driver._managed == true)
+        spawned_port = tonumber(driver.server_url:match(":(%d+)$"))
+        check("spawned local url", spawned_port ~= nil)
 
-local tcp = socket.tcp()
-tcp:settimeout(2)
-local connected = tcp:connect("127.0.0.1", 8766)
-tcp:close()
-assert(connected, "fixture server did not start on port 8766")
-local fixture_url = "http://127.0.0.1:8766/"
-
-print("Auto-spawning ChromeDriver on a free port...")
-local driver = WebDriver.new({
-    browser_name = "chrome",
-    headless = true,
-    spawn = true,
-    port = 9516,
-})
-
-check("managed spawn", driver._managed == true)
-local spawned_port = tonumber(driver.server_url:match(":(%d+)$"))
-check("spawned local url", spawned_port ~= nil)
-
-local function cleanup()
-    pcall(function() driver:quit() end)
-    local pid_file = io.open("/tmp/lua-selenium-fixture2.pid", "r")
-    if pid_file then
-        local pid = pid_file:read("*l")
-        pid_file:close()
-        if pid and #pid > 0 then
-            os.execute("kill " .. pid .. " >/dev/null 2>&1")
+        local function attr(id, name)
+            return driver:find_element(By.id(id)):get_attribute(name)
         end
-    end
-end
 
-local function attr(id, name)
-    return driver:find_element(By.id(id)):get_attribute(name)
-end
-
-local ok, err = pcall(function()
-    driver:get(fixture_url)
-    check_eq("fixture title", driver:get_title(), "Lua Selenium Fixture")
+        driver:get(fixture_url)
+        check_eq("fixture title", driver:get_title(), "Lua Selenium Fixture")
 
     print("\n[Actions: hover / double-click / context-click]")
     driver:find_element(By.id("hover-target")):hover()
@@ -148,22 +125,21 @@ local ok, err = pcall(function()
     live:settimeout(0.3)
     local live_ok = live:connect("127.0.0.1", spawned_port)
     live:close()
-    check("driver port listening", live_ok ~= nil)
-end)
+        check("driver port listening", live_ok ~= nil)
+    end)
+end, debug.traceback)
 
 if not ok then
     failed = failed + 1
     print("\nERROR: " .. tostring(err))
 end
 
-local port_to_check = spawned_port
-cleanup()
 socket.sleep(0.4)
 
-if port_to_check then
+if spawned_port then
     local after = socket.tcp()
     after:settimeout(0.3)
-    local still = after:connect("127.0.0.1", port_to_check)
+    local still = after:connect("127.0.0.1", spawned_port)
     after:close()
     check("spawned driver stopped after quit", still == nil)
 end

@@ -422,13 +422,18 @@ local function build_always_match(options)
             table.insert(args, "--disable-gpu")
             table.insert(args, "--window-size=1920,1080")
         end
+        if os.getenv("CI") then
+            table.insert(args, "--no-sandbox")
+            table.insert(args, "--disable-dev-shm-usage")
+        end
         if options.user_data_dir then
             table.insert(args, "--user-data-dir=" .. options.user_data_dir)
         end
         append_args(args, chrome.args)
         append_args(args, extra_args)
         chrome.args = json_array(args)
-        if options.binary then chrome.binary = options.binary end
+        local chrome_bin = options.binary or os.getenv("CHROME_BIN") or os.getenv("CHROME_PATH")
+        if chrome_bin then chrome.binary = chrome_bin end
         chrome.prefs = merge_prefs(chrome.prefs, options.chrome_prefs or options.prefs)
         if download_dir then
             chrome.prefs["download.default_directory"] = download_dir
@@ -446,7 +451,8 @@ local function build_always_match(options)
         append_args(args, ff.args)
         append_args(args, extra_args)
         ff.args = json_array(args)
-        if options.binary then ff.binary = options.binary end
+        local firefox_bin = options.binary or os.getenv("FIREFOX_BIN")
+        if firefox_bin then ff.binary = firefox_bin end
         ff.prefs = merge_prefs(ff.prefs, options.firefox_prefs or options.prefs)
         if download_dir then
             ff.prefs["browser.download.folderList"] = 2
@@ -472,13 +478,18 @@ local function build_always_match(options)
             table.insert(args, "--headless=new")
             table.insert(args, "--disable-gpu")
         end
+        if os.getenv("CI") then
+            table.insert(args, "--no-sandbox")
+            table.insert(args, "--disable-dev-shm-usage")
+        end
         if options.user_data_dir then
             table.insert(args, "--user-data-dir=" .. options.user_data_dir)
         end
         append_args(args, edge.args)
         append_args(args, extra_args)
         edge.args = json_array(args)
-        if options.binary then edge.binary = options.binary end
+        local edge_bin = options.binary or os.getenv("CHROME_BIN")
+        if edge_bin then edge.binary = edge_bin end
         edge.prefs = merge_prefs(edge.prefs, options.chrome_prefs or options.prefs)
         if download_dir then
             edge.prefs["download.default_directory"] = download_dir
@@ -922,7 +933,7 @@ function WebDriver:bidi()
     if self._bidi then
         return self._bidi
     end
-    local BiDi = require("webdriver_bidi")
+    local BiDi = require("webdriver.bidi")
     self._bidi = BiDi.connect(self)
     return self._bidi
 end
@@ -2304,7 +2315,7 @@ WebDriver.ELEMENT_KEY = ELEMENT_KEY
 WebDriver.SHADOW_KEY = SHADOW_KEY
 WebDriver.test = setmetatable({}, {
     __index = function(_, key)
-        return require("webdriver_test")[key]
+        return require("webdriver.test")[key]
     end
 })
 

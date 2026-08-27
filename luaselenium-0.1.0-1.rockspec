@@ -1,7 +1,8 @@
 package = "luaselenium"
-version = "scm-1"
+version = "0.1.0-1"
 source = {
-   url = "git+https://github.com/eadaradhiraj/lua-selenium.git"
+   url = "git+https://github.com/eadaradhiraj/lua-selenium.git",
+   tag = "v0.1.0"
 }
 description = {
    summary = "W3C WebDriver client for Lua",
@@ -9,8 +10,6 @@ description = {
 A Lua client for the W3C WebDriver protocol: sessions, locators, actions,
 cookies, frames, alerts, managed chromedriver/geckodriver lifecycle,
 and WebDriver BiDi over WebSockets.
-
-Development rockspec tracking the git default branch.
 ]],
    homepage = "https://github.com/eadaradhiraj/lua-selenium",
    license = "MIT"

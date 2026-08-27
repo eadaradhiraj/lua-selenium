@@ -1,6 +1,7 @@
+dofile("tests/env.lua")
 local WebDriver = require("webdriver")
 local By = WebDriver.By
-local test = require("webdriver_test")
+local test = require("webdriver.test")
 
 if not test.reachable("https://www.wikipedia.org") then
     print("SKIP: Wikipedia unreachable (offline)")

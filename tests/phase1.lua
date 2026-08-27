@@ -1,6 +1,7 @@
+dofile("tests/env.lua")
 local WebDriver = require("webdriver")
 local By = WebDriver.By
-local test = require("webdriver_test")
+local test = require("webdriver.test")
 
 local passed = 0
 local failed = 0

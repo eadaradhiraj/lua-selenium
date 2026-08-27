@@ -1,6 +1,7 @@
+dofile("tests/env.lua")
 local WebDriver = require("webdriver")
 local By = WebDriver.By
-local test = require("webdriver_test")
+local test = require("webdriver.test")
 local socket = require("socket")
 
 local passed = 0
@@ -21,7 +22,7 @@ local function check_eq(name, actual, expected)
 end
 
 print("Starting fixture server...")
-os.execute("lua fixture_server.lua 8768 >/tmp/lua-selenium-fixture-api.log 2>&1 & echo $! >/tmp/lua-selenium-fixture-api.pid")
+os.execute("lua tests/fixture.lua 8768 >/tmp/lua-selenium-fixture-api.log 2>&1 & echo $! >/tmp/lua-selenium-fixture-api.pid")
 socket.sleep(0.3)
 local fixture_url = "http://127.0.0.1:8768/"
 

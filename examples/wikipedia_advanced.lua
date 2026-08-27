@@ -1,6 +1,7 @@
+dofile("tests/env.lua")
 local WebDriver = require("webdriver")
 local By = WebDriver.By
-local test = require("webdriver_test")
+local test = require("webdriver.test")
 
 if not test.reachable("https://www.wikipedia.org") then
     print("SKIP: Wikipedia unreachable (offline)")
@@ -27,8 +28,8 @@ print("[4] Article Heading: " .. heading:get_text())
 local user_agent = driver:execute_script("return navigator.userAgent;")
 print("[5] Browser User-Agent: " .. tostring(user_agent))
 
-driver:save_screenshot("lua_wiki_screenshot.png")
-print("[6] Saved screenshot to 'lua_wiki_screenshot.png'")
+driver:save_screenshot("/tmp/lua-selenium-wiki.png")
+print("[6] Saved screenshot to '/tmp/lua-selenium-wiki.png'")
 
 print("[7] Quitting driver...")
 driver:quit()

@@ -1,6 +1,6 @@
 local json = require("lunajson")
 local socket = require("socket")
-local WebSocket = require("webdriver_ws")
+local WebSocket = require("webdriver.ws")
 
 local BiDi = {}
 BiDi.__index = BiDi

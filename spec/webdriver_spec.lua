@@ -1,5 +1,6 @@
 -- Example busted spec. Run with: busted spec/webdriver_spec.lua
-local test = require("webdriver_test")
+dofile("tests/env.lua")
+local test = require("webdriver.test")
 
 describe("luaselenium", function()
     it("creates a headless Chrome session and reads the page title", function()

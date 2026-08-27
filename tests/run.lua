@@ -1,20 +1,22 @@
 -- Run local suite (no Wikipedia / external network).
 -- Chrome first, then the W3C suites again on Firefox when geckodriver is present.
+dofile("tests/env.lua")
+
 local chrome_tests = {
-    "test_api.lua",
-    "test_phase1.lua",
-    "test_phase2.lua",
-    "test_phase3.lua",
-    "test_pom.lua",
-    "example.lua",
+    "tests/api.lua",
+    "tests/phase1.lua",
+    "tests/phase2.lua",
+    "tests/phase3.lua",
+    "tests/pom.lua",
+    "examples/example.lua",
 }
 
 local firefox_tests = {
-    "test_api.lua",
-    "test_phase1.lua",
-    "test_phase2.lua",
-    "test_phase3.lua",
-    "test_pom.lua",
+    "tests/api.lua",
+    "tests/phase1.lua",
+    "tests/phase2.lua",
+    "tests/phase3.lua",
+    "tests/pom.lua",
 }
 
 local function run(cmd, label)

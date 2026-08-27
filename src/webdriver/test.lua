@@ -131,8 +131,20 @@ function M.start_fixture(port)
     port = port or 8765
     local socket = require("socket")
     local pidfile = "/tmp/lua-selenium-fixture-" .. tostring(port) .. ".pid"
+    local script = os.getenv("LUA_SELENIUM_FIXTURE")
+    if not script or #script == 0 then
+        local src = debug.getinfo(1, "S").source
+        if src:sub(1, 1) == "@" then
+            local dir = src:sub(2):match("(.+)/[^/]+$")
+            if dir then
+                script = dir .. "/../../tests/fixture.lua"
+            end
+        end
+    end
+    script = script or "tests/fixture.lua"
     os.execute(string.format(
-        "lua fixture_server.lua %d >/tmp/lua-selenium-fixture-%d.log 2>&1 & echo $! > %s",
+        "lua %s %d >/tmp/lua-selenium-fixture-%d.log 2>&1 & echo $! > %s",
+        "'" .. script:gsub("'", "'\\''") .. "'",
         port, port, pidfile
     ))
     local start = socket.gettime()

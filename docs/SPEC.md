@@ -58,23 +58,21 @@
 * **Multi-Browser Capabilities**: `goog:chromeOptions`, `moz:firefoxOptions`, `safari:options`, `ms:edgeOptions`, plus `bstack:options` / `sauce:options`. Remote URLs via `provider = "browserstack"|"saucelabs"`, `grid_url`, or `username`/`access_key`. HTTPS via luasec.
 
 ### 8. Modern Tooling & Ecosystem (Phase 3)
-* **WebDriver BiDi**: Session capability `webSocketUrl: true` (`bidi = true`). RFC 6455 client in `webdriver_ws.lua` (text frames, ping/pong, `Sec-WebSocket-Accept`, close code/reason, RSV and fragmented-control rejection). JSON-RPC via `driver:bidi()`: `subscribe`, `on`, `navigate`, console logs, JS exceptions, `mock_request`. Chrome and Firefox both run this in `test_phase3.lua`. Not a general WebSocket library (no subprotocols or permessage-deflate).
+* **WebDriver BiDi**: Session capability `webSocketUrl: true` (`bidi = true`). RFC 6455 client in `src/webdriver/ws.lua` (text frames, ping/pong, `Sec-WebSocket-Accept`, close code/reason, RSV and fragmented-control rejection). JSON-RPC via `driver:bidi()`: `subscribe`, `on`, `navigate`, console logs, JS exceptions, `mock_request`. Chrome and Firefox both run this in `tests/phase3.lua`. Not a general WebSocket library (no subprotocols or permessage-deflate).
 * **CDP**: `driver:execute_cdp(cmd, params)` via ChromeDriver `/goog/cdp/execute`.
-* **Test runners**: `webdriver_test` assertions (`equal`, `contains`, `matches`), `with_driver`, and `with_local_session` (HTTP fixture + session). Busted example in `spec/webdriver_spec.lua`.
+* **Test runners**: `require("webdriver.test")` assertions (`equal`, `contains`, `matches`), `with_driver`, and `with_local_session` (HTTP fixture + session). Busted example in `spec/webdriver_spec.lua`.
 * **Page Object Model**: `driver:page({ locators })` and `Page.extend({ locators })` with `el` / `els` / `type` / `click` / `component` for nested regions. `Page.generate(driver, { name, url, out })` / `driver:generate_page` scans the current page for stable locators and writes a `Page.extend` module.
 * **Shadow DOM**: open roots via `element:shadow_root()`; finds from a shadow root use W3C `POST /shadow/{id}/element` (required by Gecko). Closed roots via `shadow_root({ pierce = true })` / `pierce_shadow()` / `find_in_shadow` (Chromium CDP). Slot helpers: `assigned_slot`, `assigned_nodes`, `assigned_elements`.
-* **Live browsers**: `run_tests.lua` runs the local suites on Chrome, then again on Firefox (`LUA_SELENIUM_BROWSER=firefox`) when `geckodriver` is on PATH. That includes BiDi console logs and `mock_request`. Shadow-root finds use W3C `/shadow/{id}/element` (Gecko requires it). CDP pierce and `goog:loggingPrefs` stay Chromium-only. Safari is out of scope.
+* **Live browsers**: `lua tests/run.lua` runs the local suites on Chrome, then again on Firefox (`LUA_SELENIUM_BROWSER=firefox`) when `geckodriver` is on PATH. That includes BiDi console logs and `mock_request`. Shadow-root finds use W3C `/shadow/{id}/element` (Gecko requires it). CDP pierce and `goog:loggingPrefs` stay Chromium-only. Safari is out of scope.
 * **Launch / downloads**: `download_dir` (Chrome prefs + CDP `setDownloadBehavior`, Firefox `moz:firefoxOptions.prefs`). `user_data_dir` (Chrome/Edge `--user-data-dir`). `firefox_prefs` / `chrome_prefs`. `driver:wait_for_download(name, timeout)` waits for a finished file (ignores `.crdownload` / `.part`, requires stable non-empty size).
-* **Packaging**: unversioned `luaselenium-scm-1.rockspec` (`luarocks make`). No release version until the API is stable. LuaRocks upload is deferred.
+* **Packaging**: `src/webdriver.lua` with submodules `webdriver.ws`, `webdriver.bidi`, `webdriver.test`. `luaselenium-scm-1.rockspec` and numbered `luaselenium-0.1.0-1.rockspec`. GitHub Actions runs `lua tests/run.lua`. CI Chromium sessions add `--no-sandbox` / `--disable-dev-shm-usage`.
 
 ---
 
 ## Part 2: Yet to be done
 
-No numbered release until the API is stable. Remaining items are deferred or out of scope — nothing queued.
+Nothing queued for library work.
 
-* **LuaRocks publish**: deferred (no upload until explicitly requested). SCM rockspec only.
-* **CI / GitHub Actions**: deferred (no workflow until explicitly requested). Local gate remains `lua run_tests.lua`.
 * **Safari**: out of scope. `safaridriver` is macOS-only.
 * **Closed-shadow pierce**: Chromium CDP only; Gecko does not expose closed trees.
 
@@ -82,7 +80,7 @@ No numbered release until the API is stable. Remaining items are deferred or out
 +-------------------------------------------------------------------------------+
 |                               Lua-Selenium Stack                              |
 +-------------------------------------------------------------------------------+
-| High-Level:   Page objects | Test helpers (webdriver_test / Busted fixture)   |
+| High-Level:   Page objects | Test helpers (`webdriver.test` / Busted fixture)    |
 | Mid-Level:    Fluent locators (`By`)  |  Actions API  |  Wait conditions      |
 | Transport:    W3C REST (HTTP)         |  WebDriver BiDi / CDP (WebSocket)     |
 | Engine:       Chromedriver / GeckoDriver / Selenium Grid / Cloud providers    |
@@ -154,3 +152,7 @@ What landed each pass, and what was left afterward.
 ### Iteration 15 — defer CI and LuaRocks
 **Done:** Part 2 marks GitHub Actions and LuaRocks upload as deferred until explicitly requested. Local verification stays `lua run_tests.lua`.
 **Yet to do:** Nothing queued (Safari out of scope; closed pierce Chromium-only).
+
+### Iteration 16 — package layout, CI, LuaRocks 0.1.0
+**Done:** Library lives under `src/webdriver.lua` with `webdriver.ws` / `webdriver.bidi` / `webdriver.test`. Tests, examples, and spec moved out of the repo root. Dropped `test_browsers.lua` (covered by the Firefox pass) and the Wikipedia screenshot artifact. GitHub Actions runs `lua tests/run.lua`. Numbered `luaselenium-0.1.0-1.rockspec` for LuaRocks.
+**Yet to do:** Safari out of scope; closed pierce Chromium-only.

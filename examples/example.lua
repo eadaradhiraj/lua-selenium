@@ -1,4 +1,5 @@
 -- Offline smoke: auto-spawn Chrome, read a data: URL, quit.
+dofile("tests/env.lua")
 local WebDriver = require("webdriver")
 local By = WebDriver.By
 

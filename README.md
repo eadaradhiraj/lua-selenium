@@ -2,7 +2,7 @@
 
 A Lua client for the [W3C WebDriver](https://www.w3.org/TR/webdriver2/) protocol. It can spawn ChromeDriver for you, talk HTTP to the classic endpoints, and optionally open a BiDi WebSocket for console logs and network mocks.
 
-This tree is **unreleased** (`luaselenium-scm-1.rockspec`). APIs can still change.
+Install from LuaRocks (`luaselenium 0.1.0`) or from this tree with `luarocks make`.
 
 ## Requirements
 
@@ -27,10 +27,10 @@ print(driver:find_element(By.css("h1")):get_text())
 driver:quit()
 ```
 
-`example.lua` in this repo does the same against a `data:` URL so it works offline:
+`examples/example.lua` does the same against a `data:` URL so it works offline:
 
 ```bash
-lua example.lua
+lua examples/example.lua
 ```
 
 ## Common options
@@ -61,27 +61,33 @@ local gen = driver:generate_page({ name = "LoginPage", out = "pages/login_page.l
 local LoginPage = require("pages.login_page")  -- or loadfile the path
 ```
 
+This client covers the classic W3C WebDriver HTTP command set. WebDriver BiDi is a separate spec; only console logs, exceptions, and `mock_request` are implemented. `element:is_displayed()` is a JSON Wire leftover (W3C dropped it).
+
 ## Tests
 
+Run from the repository root:
+
 ```bash
-lua run_tests.lua          -- Chrome suites, then Firefox when geckodriver is present
-LUA_SELENIUM_BROWSER=firefox lua test_api.lua
-lua test.lua               -- Wikipedia smoke; skips if offline
+lua tests/run.lua                        -- Chrome suites, then Firefox when geckodriver is present
+LUA_SELENIUM_BROWSER=firefox lua tests/api.lua
+lua examples/wikipedia.lua               -- smoke; skips if offline
 ```
 
-## Install from this tree
+## Install
 
 ```bash
+luarocks install luaselenium
+# or from this tree:
 luarocks make luaselenium-scm-1.rockspec
 ```
 
-No numbered version has been published to LuaRocks yet.
-
 ## Layout
 
-| File | Role |
+| Path | Role |
 |---|---|
-| `webdriver.lua` | Client: session, locators, actions, waits, POM |
-| `webdriver_bidi.lua` / `webdriver_ws.lua` | BiDi over WebSockets |
-| `webdriver_test.lua` | Assertions + `with_local_session` |
-| `spec.MD` | Done / remaining / iteration log |
+| `src/webdriver.lua` | Client: session, locators, actions, waits, POM |
+| `src/webdriver/ws.lua` / `bidi.lua` | BiDi over WebSockets (`require("webdriver.ws")`) |
+| `src/webdriver/test.lua` | Assertions + `with_local_session` (`require("webdriver.test")`) |
+| `tests/` | Local Chrome/Firefox suite and HTML fixture |
+| `examples/` | Offline smoke and optional Wikipedia scripts |
+| `docs/SPEC.md` | Done / remaining / iteration log |

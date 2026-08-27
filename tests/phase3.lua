@@ -1,4 +1,5 @@
-local test = require("webdriver_test")
+dofile("tests/env.lua")
+local test = require("webdriver.test")
 
 local passed = 0
 local failed = 0
@@ -24,7 +25,7 @@ end)
 check("contains string", true)
 
 print("\n[WebSocket handshake]")
-local WS = require("webdriver_ws")
+local WS = require("webdriver.ws")
 check("RFC 6455 Sec-WebSocket-Accept",
     WS.sec_websocket_accept("dGhlIHNhbXBsZSBub25jZQ==") == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=")
 

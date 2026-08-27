@@ -23,6 +23,36 @@ local html = [[<!DOCTYPE html>
   <button id="alert-btn" onclick="alert('hello-alert')">Alert</button>
   <button id="confirm-btn" onclick="confirm('sure?')">Confirm</button>
   <button id="prompt-btn" onclick="window.__promptVal = prompt('enter');">Prompt</button>
+  <div id="hover-target" style="width:120px;padding:8px;background:#eee;">hover me</div>
+  <div id="dbl-target" style="width:120px;padding:8px;background:#ddd;">double click</div>
+  <div id="ctx-target" style="width:120px;padding:8px;background:#ccc;">right click</div>
+  <div id="shift-target" style="width:120px;padding:8px;background:#bbb;">shift click</div>
+  <div id="src" style="position:absolute;left:20px;top:420px;width:48px;height:48px;background:#c00;color:#fff;">src</div>
+  <div id="dst" style="position:absolute;left:220px;top:420px;width:96px;height:96px;background:#00c;color:#fff;">dst</div>
+  <script>
+    document.getElementById('hover-target').addEventListener('mouseover', function() {
+      this.dataset.hovered = '1';
+    });
+    document.getElementById('dbl-target').addEventListener('dblclick', function() {
+      this.dataset.dbl = '1';
+    });
+    document.getElementById('ctx-target').addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      this.dataset.ctx = '1';
+    });
+    document.getElementById('shift-target').addEventListener('click', function(e) {
+      this.dataset.shift = e.shiftKey ? '1' : '0';
+    });
+    (function() {
+      var src = document.getElementById('src');
+      var dst = document.getElementById('dst');
+      var dragging = false;
+      src.addEventListener('mousedown', function() { dragging = true; src.dataset.down = '1'; });
+      dst.addEventListener('mouseover', function() { if (dragging) dst.dataset.over = '1'; });
+      dst.addEventListener('mouseup', function() { if (dragging) dst.dataset.dropped = '1'; dragging = false; });
+      document.addEventListener('mouseup', function() { dragging = false; });
+    })();
+  </script>
 </body>
 </html>]]
 

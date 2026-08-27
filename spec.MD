@@ -45,32 +45,14 @@
 * **Cookie Engine**: `get_cookies`, `get_cookie`, `add_cookie`, `delete_cookie`, `delete_all_cookies`.
 * **Timeout Configuration**: `get_timeouts` / `set_timeouts` for implicit, page load, and script timeouts (milliseconds).
 
+### 7. Advanced Interaction & Driver Automation (Phase 2)
+* **W3C Actions API**: Fluent `driver:actions()` chain (`move_to`, `click`, `double_click`, `context_click`, `drag_and_drop`, `key_down` / `key_up`, `send_keys`) posted to `/session/{id}/actions`. Shortcuts: `element:hover()`, `:double_click()`, `:context_click()`, `driver:drag_and_drop(src, dest)`. `WebDriver.Keys` holds W3C key code points.
+* **Automatic Driver Lifecycle**: If no `server_url` is given, spawn `chromedriver` / `geckodriver` / `safaridriver` on a free port. The process is tied to a pipe so `quit()`, `__close` (`<close>`), and GC of the driver object kill it.
+* **Multi-Browser Capabilities**: `goog:chromeOptions`, `moz:firefoxOptions`, `safari:options`, `ms:edgeOptions`, plus `bstack:options` / `sauce:options`. Remote URLs via `provider = "browserstack"|"saucelabs"`, `grid_url`, or `username`/`access_key`. HTTPS via luasec.
+
 ---
 
 ## Part 2: Future Roadmap & Next Steps
-
-### Phase 2: Advanced Interaction & Driver Automation (Mid-Term)
-
-#### 1. W3C Actions API (Advanced Inputs)
-* Implement `POST /session/{id}/actions` for complex composite events:
-  * Mouse hovering (`moveTo`)
-  * Drag-and-drop
-  * Double-click & right-click (context menu)
-  * Key modifier combinations (e.g., `Ctrl+A`, `Shift+Click`)
-
-#### 2. Automatic Driver Lifecycle Management
-* Build a process spawner that:
-  1. Checks if a local port (e.g., `9515`) is free.
-  2. Spawns `chromedriver` / `geckodriver` automatically via `io.popen` or C-bindings (like `luaposix` / `luv`).
-  3. Kills the background driver process automatically when the Lua garbage collector cleans up the driver object (`__gc` metamethod).
-
-#### 3. Multi-Browser Support
-* Add explicit capability builders for:
-  * **Firefox**: `moz:firefoxOptions` (for `geckodriver`)
-  * **Safari**: `safari:options` (for `safaridriver`)
-  * **Remote Grids**: Authenticated support for Selenium Grid, BrowserStack, and Sauce Labs.
-
----
 
 ### Phase 3: Modern Tooling & Ecosystem (Long-Term)
 

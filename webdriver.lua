@@ -3,6 +3,9 @@ local ltn12 = require("ltn12")
 local json = require("lunajson")
 local mime = require("mime")
 local socket = require("socket")
+local utf8 = require("utf8")
+
+local https
 
 local WebDriver = {}
 WebDriver.__index = WebDriver
@@ -13,9 +16,100 @@ WebElement.__index = WebElement
 local Alert = {}
 Alert.__index = Alert
 
+local Actions = {}
+Actions.__index = Actions
+
 local By = {}
 
 local ELEMENT_KEY = "element-6066-11e4-a52e-4f735466cecf"
+
+local DEFAULT_PORTS = {
+    chrome = 9515,
+    firefox = 4444,
+    safari = 5555,
+    MicrosoftEdge = 9515,
+}
+
+local DRIVER_BINS = {
+    chrome = "chromedriver",
+    firefox = "geckodriver",
+    safari = "safaridriver",
+    MicrosoftEdge = "msedgedriver",
+}
+
+local BROWSER_NAMES = {
+    chrome = "chrome",
+    chromium = "chrome",
+    firefox = "firefox",
+    safari = "safari",
+    edge = "MicrosoftEdge",
+    MicrosoftEdge = "MicrosoftEdge",
+}
+
+-- W3C WebDriver key code points
+local Keys = {
+    NULL = "\u{E000}",
+    CANCEL = "\u{E001}",
+    HELP = "\u{E002}",
+    BACKSPACE = "\u{E003}",
+    TAB = "\u{E004}",
+    CLEAR = "\u{E005}",
+    RETURN = "\u{E006}",
+    ENTER = "\u{E007}",
+    SHIFT = "\u{E008}",
+    CONTROL = "\u{E009}",
+    CTRL = "\u{E009}",
+    ALT = "\u{E00A}",
+    PAUSE = "\u{E00B}",
+    ESCAPE = "\u{E00C}",
+    SPACE = "\u{E00D}",
+    PAGE_UP = "\u{E00E}",
+    PAGE_DOWN = "\u{E00F}",
+    END = "\u{E010}",
+    HOME = "\u{E011}",
+    LEFT = "\u{E012}",
+    ARROW_LEFT = "\u{E012}",
+    UP = "\u{E013}",
+    ARROW_UP = "\u{E013}",
+    RIGHT = "\u{E014}",
+    ARROW_RIGHT = "\u{E014}",
+    DOWN = "\u{E015}",
+    ARROW_DOWN = "\u{E015}",
+    INSERT = "\u{E016}",
+    DELETE = "\u{E017}",
+    SEMICOLON = "\u{E018}",
+    EQUALS = "\u{E019}",
+    NUMPAD0 = "\u{E01A}",
+    NUMPAD1 = "\u{E01B}",
+    NUMPAD2 = "\u{E01C}",
+    NUMPAD3 = "\u{E01D}",
+    NUMPAD4 = "\u{E01E}",
+    NUMPAD5 = "\u{E01F}",
+    NUMPAD6 = "\u{E020}",
+    NUMPAD7 = "\u{E021}",
+    NUMPAD8 = "\u{E022}",
+    NUMPAD9 = "\u{E023}",
+    MULTIPLY = "\u{E024}",
+    ADD = "\u{E025}",
+    SEPARATOR = "\u{E026}",
+    SUBTRACT = "\u{E027}",
+    DECIMAL = "\u{E028}",
+    DIVIDE = "\u{E029}",
+    F1 = "\u{E031}",
+    F2 = "\u{E032}",
+    F3 = "\u{E033}",
+    F4 = "\u{E034}",
+    F5 = "\u{E035}",
+    F6 = "\u{E036}",
+    F7 = "\u{E037}",
+    F8 = "\u{E038}",
+    F9 = "\u{E039}",
+    F10 = "\u{E03A}",
+    F11 = "\u{E03B}",
+    F12 = "\u{E03C}",
+    META = "\u{E03D}",
+    COMMAND = "\u{E03D}",
+}
 
 -- Helper to ensure empty tables serialize as JSON arrays [] in lunajson
 local function json_array(tbl)
@@ -42,6 +136,46 @@ local function url_encode(str)
     return (tostring(str):gsub("([^%w%-%.%_~])", function(c)
         return string.format("%%%02X", string.byte(c))
     end))
+end
+
+local function url_decode(str)
+    return (tostring(str):gsub("+", " "):gsub("%%(%x%x)", function(h)
+        return string.char(tonumber(h, 16))
+    end))
+end
+
+local function utf8_chars(text)
+    local chars = {}
+    for _, code in utf8.codes(tostring(text)) do
+        table.insert(chars, utf8.char(code))
+    end
+    return chars
+end
+
+local function copy_table(src)
+    local dst = {}
+    if not src then return dst end
+    for k, v in pairs(src) do
+        dst[k] = v
+    end
+    return dst
+end
+
+local function append_args(dst, src)
+    if not src then return dst end
+    for _, arg in ipairs(src) do
+        table.insert(dst, arg)
+    end
+    return dst
+end
+
+local function shell_quote(s)
+    return "'" .. tostring(s):gsub("'", "'\\''") .. "'"
+end
+
+local function normalize_browser(name)
+    name = name or "chrome"
+    return BROWSER_NAMES[name] or name
 end
 
 -----------------------------------------------------------
@@ -82,8 +216,31 @@ function By.partial_link_text(text)
 end
 
 -----------------------------------------------------------
--- Internal HTTP Helper
+-- Internal HTTP Helper (HTTP + HTTPS via luasec)
 -----------------------------------------------------------
+local function http_client_for(url)
+    if url:match("^https://") then
+        if not https then
+            local ok, mod = pcall(require, "ssl.https")
+            if not ok then
+                error("HTTPS URLs require luasec (ssl.https): " .. tostring(mod))
+            end
+            https = mod
+        end
+        return https
+    end
+    return http
+end
+
+local function split_userinfo(url)
+    local scheme, userinfo, rest = url:match("^(https?)://([^@/]+)@(.+)$")
+    if not scheme or not userinfo:find(":") then
+        return url, nil
+    end
+    local user, pass = userinfo:match("^([^:]+):(.*)$")
+    return scheme .. "://" .. rest, url_decode(user) .. ":" .. url_decode(pass)
+end
+
 local function request(method, url, body_table)
     local req_body = ""
     if type(body_table) == "string" then
@@ -92,18 +249,24 @@ local function request(method, url, body_table)
         req_body = json.encode(body_table)
     end
 
+    local clean_url, basic = split_userinfo(url)
     local resp_body_table = {}
     local headers = {
         ["Content-Type"] = "application/json; charset=utf-8",
         ["Content-Length"] = tostring(#req_body)
     }
+    if basic then
+        headers["Authorization"] = "Basic " .. mime.b64(basic)
+    end
 
-    local _, status = http.request{
-        url = url,
+    local client = http_client_for(clean_url)
+    local _, status = client.request{
+        url = clean_url,
         method = method,
         headers = headers,
         source = ltn12.source.string(req_body),
-        sink = ltn12.sink.table(resp_body_table)
+        sink = ltn12.sink.table(resp_body_table),
+        protocol = "tlsv1_2",
     }
 
     local resp_body_str = table.concat(resp_body_table)
@@ -129,6 +292,250 @@ local function element_ref(element)
 end
 
 -----------------------------------------------------------
+-- Capability builders
+-----------------------------------------------------------
+local function build_always_match(options)
+    local browser = normalize_browser(options.browser_name or options.browser)
+    local headless = options.headless == true
+    local extra_args = options.args
+
+    local always = {
+        browserName = browser
+    }
+    if options.accept_insecure_certs then
+        always.acceptInsecureCerts = true
+    end
+
+    if browser == "chrome" then
+        local chrome = copy_table(options.chrome_options)
+        local args = {}
+        if headless then
+            table.insert(args, "--headless=new")
+            table.insert(args, "--disable-gpu")
+            table.insert(args, "--window-size=1920,1080")
+        end
+        append_args(args, chrome.args)
+        append_args(args, extra_args)
+        chrome.args = json_array(args)
+        if options.binary then chrome.binary = options.binary end
+        always["goog:chromeOptions"] = chrome
+    elseif browser == "firefox" then
+        local ff = copy_table(options.firefox_options)
+        local args = {}
+        if headless then
+            table.insert(args, "-headless")
+        end
+        append_args(args, ff.args)
+        append_args(args, extra_args)
+        ff.args = json_array(args)
+        if options.binary then ff.binary = options.binary end
+        always["moz:firefoxOptions"] = ff
+    elseif browser == "safari" then
+        always["safari:options"] = copy_table(options.safari_options)
+    elseif browser == "MicrosoftEdge" then
+        local edge = copy_table(options.edge_options)
+        local args = {}
+        if headless then
+            table.insert(args, "--headless=new")
+            table.insert(args, "--disable-gpu")
+        end
+        append_args(args, edge.args)
+        append_args(args, extra_args)
+        edge.args = json_array(args)
+        if options.binary then edge.binary = options.binary end
+        always["ms:edgeOptions"] = edge
+    end
+
+    if options.bstack_options then
+        always["bstack:options"] = options.bstack_options
+    end
+    if options.sauce_options then
+        always["sauce:options"] = options.sauce_options
+    end
+    if options.capabilities then
+        for k, v in pairs(options.capabilities) do
+            always[k] = v
+        end
+    end
+
+    return always
+end
+
+function WebDriver.build_capabilities(options)
+    options = options or {}
+    options.browser_name = normalize_browser(options.browser_name or options.browser)
+    return { alwaysMatch = build_always_match(options) }
+end
+
+-----------------------------------------------------------
+-- Remote URL helpers (Grid / BrowserStack / Sauce Labs)
+-----------------------------------------------------------
+local function inject_auth(url, options)
+    local user = options.username or options.user
+    local key = options.access_key or options.key or options.password
+    if user and key and not url:find("@", 1, true) then
+        return url:gsub("^(https?://)", "%1" .. url_encode(user) .. ":" .. url_encode(key) .. "@", 1)
+    end
+    return url
+end
+
+local function is_remote_options(options)
+    if options.provider or options.grid_url or options.remote_url then
+        return true
+    end
+    if options.server_url then
+        local host = options.server_url:match("://(%[[^%]]+%])") or options.server_url:match("://([^/:]+)")
+        if host and host ~= "127.0.0.1" and host ~= "localhost" and host ~= "::1" then
+            return true
+        end
+    end
+    return false
+end
+
+local function resolve_remote_url(options)
+    local user = options.username or options.user
+    local key = options.access_key or options.key or options.password
+    local provider = options.provider
+
+    if provider == "browserstack" then
+        if not (user and key) then
+            error("BrowserStack requires username and access_key")
+        end
+        return string.format(
+            "https://%s:%s@hub.browserstack.com/wd/hub",
+            url_encode(user), url_encode(key)
+        )
+    end
+
+    if provider == "saucelabs" or provider == "sauce" then
+        if not (user and key) then
+            error("Sauce Labs requires username and access_key")
+        end
+        local region = options.region or "us-west-1"
+        return string.format(
+            "https://%s:%s@ondemand.%s.saucelabs.com:443/wd/hub",
+            url_encode(user), url_encode(key), region
+        )
+    end
+
+    local url = options.server_url or options.remote_url or options.grid_url
+    if not url then
+        error("Remote WebDriver requires server_url, remote_url, grid_url, or provider")
+    end
+    return inject_auth(url, options)
+end
+
+-----------------------------------------------------------
+-- Local driver process lifecycle
+-----------------------------------------------------------
+local function port_is_open(host, port)
+    local tcp = socket.tcp()
+    tcp:settimeout(0.15)
+    local ok = tcp:connect(host, port)
+    tcp:close()
+    return ok ~= nil
+end
+
+local function port_is_free(port)
+    local server, err = socket.bind("127.0.0.1", port)
+    if server then
+        server:close()
+        return true
+    end
+    return false, err
+end
+
+local function find_free_port(start)
+    for port = start, start + 40 do
+        if port_is_free(port) then
+            return port
+        end
+    end
+    error("No free TCP port in range " .. tostring(start) .. "-" .. tostring(start + 40))
+end
+
+local function wait_for_port(host, port, timeout_sec)
+    timeout_sec = timeout_sec or 10
+    local start = socket.gettime()
+    while socket.gettime() - start < timeout_sec do
+        if port_is_open(host, port) then
+            return true
+        end
+        socket.sleep(0.1)
+    end
+    return false
+end
+
+local function command_exists(bin)
+    local handle = io.popen("command -v " .. shell_quote(bin) .. " 2>/dev/null")
+    if not handle then return nil end
+    local path = handle:read("*l")
+    handle:close()
+    if path and #path > 0 then
+        return path
+    end
+    return nil
+end
+
+local function driver_command(browser, port, driver_path)
+    local bin = driver_path or DRIVER_BINS[browser] or "chromedriver"
+    if not driver_path and not command_exists(bin) then
+        error("Driver binary not found in PATH: " .. bin)
+    end
+    if browser == "firefox" then
+        return string.format("%s --port %d", shell_quote(bin), port)
+    elseif browser == "safari" then
+        return string.format("%s -p %d", shell_quote(bin), port)
+    else
+        return string.format("%s --port=%d --whitelisted-ips=", shell_quote(bin), port)
+    end
+end
+
+-- Keep stdin open; GC/close of the pipe kills the driver via trap + cat EOF.
+local function spawn_driver_process(cmd)
+    local script = cmd ..
+        ' >/dev/null 2>&1 & pid=$!; trap "kill -TERM $pid 2>/dev/null; wait $pid 2>/dev/null" EXIT; cat >/dev/null'
+    local proc = io.popen("sh -c " .. shell_quote(script), "w")
+    if not proc then
+        error("Failed to spawn driver process: " .. cmd)
+    end
+    return proc
+end
+
+local function ensure_local_service(options, browser)
+    local host = "127.0.0.1"
+    local port = options.port or DEFAULT_PORTS[browser] or 9515
+    local want_spawn = options.spawn
+    if want_spawn == nil then
+        want_spawn = options.server_url == nil
+    end
+
+    if options.server_url and want_spawn ~= true then
+        return options.server_url, nil
+    end
+
+    if port_is_open(host, port) then
+        if want_spawn == true then
+            port = find_free_port(port + 1)
+        else
+            local url = options.server_url or ("http://" .. host .. ":" .. tostring(port))
+            return url, nil
+        end
+    elseif want_spawn == false then
+        local url = options.server_url or ("http://" .. host .. ":" .. tostring(port))
+        return url, nil
+    end
+
+    local cmd = driver_command(browser, port, options.driver_path)
+    local proc = spawn_driver_process(cmd)
+    if not wait_for_port(host, port, options.startup_timeout or 10) then
+        pcall(function() proc:close() end)
+        error("Timed out waiting for " .. browser .. " driver on port " .. tostring(port))
+    end
+    return "http://" .. host .. ":" .. tostring(port), proc
+end
+
+-----------------------------------------------------------
 -- WebDriver Constructor & Methods
 -----------------------------------------------------------
 function WebDriver.new(options, browser_name)
@@ -136,25 +543,19 @@ function WebDriver.new(options, browser_name)
         options = { server_url = options, browser_name = browser_name }
     end
     options = options or {}
-    local server_url = options.server_url or "http://127.0.0.1:9515"
-    browser_name = options.browser_name or "chrome"
-    local headless = options.headless == true
+    local browser = normalize_browser(options.browser_name or options.browser or "chrome")
+    options.browser_name = browser
 
-    local chrome_args = {}
-    if headless then
-        table.insert(chrome_args, "--headless=new")
-        table.insert(chrome_args, "--disable-gpu")
-        table.insert(chrome_args, "--window-size=1920,1080")
+    local server_url, proc
+    if is_remote_options(options) then
+        server_url = resolve_remote_url(options)
+    else
+        server_url, proc = ensure_local_service(options, browser)
     end
 
     local payload = {
         capabilities = {
-            alwaysMatch = {
-                browserName = browser_name,
-                ["goog:chromeOptions"] = {
-                    args = json_array(chrome_args)
-                }
-            }
+            alwaysMatch = build_always_match(options)
         }
     }
 
@@ -164,9 +565,38 @@ function WebDriver.new(options, browser_name)
     return setmetatable({
         server_url = server_url,
         session_id = session_id,
-        base_url = server_url .. "/session/" .. session_id
+        base_url = server_url .. "/session/" .. session_id,
+        browser_name = browser,
+        _proc = proc,
+        _managed = proc ~= nil,
     }, WebDriver)
 end
+
+function WebDriver:stop_service()
+    if self._proc then
+        pcall(function() self._proc:close() end)
+        self._proc = nil
+        self._managed = false
+    end
+end
+
+function WebDriver:quit()
+    if self._quitting then return end
+    self._quitting = true
+    local ok, err = true, nil
+    if self.base_url then
+        ok, err = pcall(request, "DELETE", self.base_url)
+    end
+    self:stop_service()
+    if not ok then
+        error(err)
+    end
+end
+
+function WebDriver:__close()
+    pcall(function() self:quit() end)
+end
+WebDriver.__gc = WebDriver.__close
 
 function WebDriver:get(url)
     return request("POST", self.base_url .. "/url", { url = url })
@@ -377,8 +807,158 @@ function WebDriver:delete_all_cookies()
     return request("DELETE", self.base_url .. "/cookie")
 end
 
-function WebDriver:quit()
-    return request("DELETE", self.base_url)
+-----------------------------------------------------------
+-- W3C Actions API
+-----------------------------------------------------------
+local function all_pauses(list)
+    if #list == 0 then return true end
+    for _, action in ipairs(list) do
+        if action.type ~= "pause" then
+            return false
+        end
+    end
+    return true
+end
+
+function Actions.new(driver)
+    return setmetatable({
+        driver = driver,
+        pointer = {},
+        key = {},
+    }, Actions)
+end
+
+function Actions:_pointer(action)
+    table.insert(self.pointer, action)
+    table.insert(self.key, { type = "pause", duration = action.duration or 0 })
+    return self
+end
+
+function Actions:_key(action)
+    table.insert(self.key, action)
+    table.insert(self.pointer, { type = "pause", duration = action.duration or 0 })
+    return self
+end
+
+function Actions:pause(ms)
+    ms = ms or 0
+    table.insert(self.pointer, { type = "pause", duration = ms })
+    table.insert(self.key, { type = "pause", duration = ms })
+    return self
+end
+
+function Actions:move_to(element, x, y)
+    return self:_pointer({
+        type = "pointerMove",
+        duration = 100,
+        origin = element_ref(element),
+        x = x or 0,
+        y = y or 0
+    })
+end
+
+function Actions:move_to_location(x, y)
+    return self:_pointer({
+        type = "pointerMove",
+        duration = 100,
+        origin = "viewport",
+        x = x,
+        y = y
+    })
+end
+
+function Actions:move_by(x, y)
+    return self:_pointer({
+        type = "pointerMove",
+        duration = 100,
+        origin = "pointer",
+        x = x,
+        y = y
+    })
+end
+
+function Actions:click_and_hold(element, button)
+    if element then self:move_to(element) end
+    return self:_pointer({ type = "pointerDown", button = button or 0 })
+end
+
+function Actions:release_pointer(button)
+    return self:_pointer({ type = "pointerUp", button = button or 0 })
+end
+
+function Actions:click(element, button)
+    button = button or 0
+    if element then self:move_to(element) end
+    self:_pointer({ type = "pointerDown", button = button })
+    self:_pointer({ type = "pointerUp", button = button })
+    return self
+end
+
+function Actions:double_click(element)
+    if element then self:move_to(element) end
+    return self:click(nil, 0):click(nil, 0)
+end
+
+function Actions:context_click(element)
+    return self:click(element, 2)
+end
+
+function Actions:drag_and_drop(source, target)
+    return self:move_to(source):click_and_hold():pause(50):move_to(target):release_pointer()
+end
+
+function Actions:key_down(key)
+    return self:_key({ type = "keyDown", value = key })
+end
+
+function Actions:key_up(key)
+    return self:_key({ type = "keyUp", value = key })
+end
+
+function Actions:send_keys(text)
+    for _, ch in ipairs(utf8_chars(text)) do
+        self:key_down(ch)
+        self:key_up(ch)
+    end
+    return self
+end
+
+function Actions:perform()
+    local sources = {}
+    if not all_pauses(self.pointer) then
+        table.insert(sources, {
+            type = "pointer",
+            id = "mouse",
+            parameters = { pointerType = "mouse" },
+            actions = json_array(self.pointer)
+        })
+    end
+    if not all_pauses(self.key) then
+        table.insert(sources, {
+            type = "key",
+            id = "keyboard",
+            actions = json_array(self.key)
+        })
+    end
+    request("POST", self.driver.base_url .. "/actions", {
+        actions = json_array(sources)
+    })
+    self.pointer = {}
+    self.key = {}
+    return self.driver
+end
+
+function Actions:release()
+    request("DELETE", self.driver.base_url .. "/actions")
+    return self
+end
+
+function WebDriver:actions()
+    return Actions.new(self)
+end
+
+function WebDriver:drag_and_drop(source, target)
+    return Actions.new(self):drag_and_drop(source, target):perform()
 end
 
 -----------------------------------------------------------
@@ -419,10 +999,7 @@ function WebElement:click()
 end
 
 function WebElement:send_keys(text)
-    local chars = {}
-    for i = 1, #text do
-        table.insert(chars, text:sub(i, i))
-    end
+    local chars = utf8_chars(text)
     return request("POST", self.base_url .. "/value", {
         text = text,
         value = json_array(chars)
@@ -441,9 +1018,23 @@ function WebElement:get_attribute(name)
     return request("GET", self.base_url .. "/attribute/" .. name)
 end
 
+function WebElement:hover()
+    return Actions.new(self.driver):move_to(self):perform()
+end
+
+function WebElement:double_click()
+    return Actions.new(self.driver):double_click(self):perform()
+end
+
+function WebElement:context_click()
+    return Actions.new(self.driver):context_click(self):perform()
+end
+
 WebDriver.By = By
+WebDriver.Keys = Keys
 WebDriver.WebElement = WebElement
 WebDriver.Alert = Alert
+WebDriver.Actions = Actions
 WebDriver.ELEMENT_KEY = ELEMENT_KEY
 
 return WebDriver

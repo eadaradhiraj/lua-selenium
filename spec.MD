@@ -5,7 +5,7 @@
 ## Part 1: Steps Completed So Far (Current State)
 
 ### 1. Environment & Runtime Setup
-* **Arch Linux Core Tooling**: Configured system packages (`lua`, `luarocks`, `base-devel`, and `chromium` which bundles `chromedriver`).
+* **Arch Linux Core Tooling**: Configured system packages (`lua`, `luarocks`, `base-devel`, `chromium` / `chromedriver`, and `firefox` / `geckodriver` for the Firefox pass).
 * **Lua Ecosystem Modules**: Integrated core rocks via LuaRocks:
   * `luasocket` – TCP networking, HTTP client, and `mime` base64 decoder.
   * `luasec` – HTTPS support.
@@ -57,11 +57,11 @@
 * **Multi-Browser Capabilities**: `goog:chromeOptions`, `moz:firefoxOptions`, `safari:options`, `ms:edgeOptions`, plus `bstack:options` / `sauce:options`. Remote URLs via `provider = "browserstack"|"saucelabs"`, `grid_url`, or `username`/`access_key`. HTTPS via luasec.
 
 ### 8. Modern Tooling & Ecosystem (Phase 3)
-* **WebDriver BiDi**: Session capability `webSocketUrl: true` (`bidi = true`). Minimal WebSocket client plus JSON-RPC BiDi commands. `driver:bidi()` for `subscribe`, `on`, `navigate`, console logs, JS exceptions, and `mock_request` network interception.
+* **WebDriver BiDi**: Session capability `webSocketUrl: true` (`bidi = true`). RFC 6455 client in `webdriver_ws.lua` (text frames, ping/pong, `Sec-WebSocket-Accept`, close code/reason, RSV and fragmented-control rejection). JSON-RPC via `driver:bidi()`: `subscribe`, `on`, `navigate`, console logs, JS exceptions, `mock_request`. Chrome and Firefox both run this in `test_phase3.lua`. Not a general WebSocket library (no subprotocols or permessage-deflate).
 * **CDP**: `driver:execute_cdp(cmd, params)` via ChromeDriver `/goog/cdp/execute`.
 * **Test runners**: `webdriver_test` assertions (`equal`, `contains`, `matches`), `with_driver`, and `with_local_session` (HTTP fixture + session). Busted example in `spec/webdriver_spec.lua`.
 * **Page Object Model**: `driver:page({ locators })` and `Page.extend({ locators })` with `el` / `els` / `type` / `click` / `component` for nested regions. `Page.generate(driver, { name, url, out })` / `driver:generate_page` scans the current page for stable locators and writes a `Page.extend` module.
-* **Shadow DOM**: open roots via `element:shadow_root()`. Closed roots via `shadow_root({ pierce = true })` / `pierce_shadow()` / `find_in_shadow` (Chromium CDP). Slot helpers: `assigned_slot`, `assigned_nodes`, `assigned_elements`.
+* **Shadow DOM**: open roots via `element:shadow_root()`; finds from a shadow root use W3C `POST /shadow/{id}/element` (required by Gecko). Closed roots via `shadow_root({ pierce = true })` / `pierce_shadow()` / `find_in_shadow` (Chromium CDP). Slot helpers: `assigned_slot`, `assigned_nodes`, `assigned_elements`.
 * **Live browsers**: `run_tests.lua` runs the local suites on Chrome, then again on Firefox (`LUA_SELENIUM_BROWSER=firefox`) when `geckodriver` is on PATH. That includes BiDi console logs and `mock_request`. Shadow-root finds use W3C `/shadow/{id}/element` (Gecko requires it). CDP pierce and `goog:loggingPrefs` stay Chromium-only. Safari is out of scope.
 * **Packaging**: unversioned `luaselenium-scm-1.rockspec` (`luarocks make`). No release version until the API is stable. LuaRocks upload is deferred.
 
@@ -137,5 +137,5 @@ What landed each pass, and what was left afterward.
 **Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only).
 
 ### Iteration 12 — BiDi WebSocket RFC 6455 hardening
-**Done:** Handshake verifies `Sec-WebSocket-Accept` (RFC example vector in `test_phase3.lua`). Close frames send/parse a 2-byte code and reason (`close(code, reason)`, `close_status()`). RSV bits, fragmented control frames, and oversize control frames are rejected.
+**Done:** Handshake verifies `Sec-WebSocket-Accept` (RFC example vector in `test_phase3.lua`). Close frames send/parse a 2-byte code and reason (`close(code, reason)`, `close_status()`). RSV bits, fragmented control frames, and oversize control frames are rejected. Part 1 BiDi/WebSocket (and env / shadow-find) text brought in line with the code.
 **Yet to do:** Items in Part 2 (LuaRocks deferred; Safari out of scope; closed pierce Chromium-only).

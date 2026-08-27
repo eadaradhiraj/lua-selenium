@@ -1,0 +1,6 @@
+*.png
+*.log
+*.pid
+.luarocks/
+lua_modules/
+luarocks.lock

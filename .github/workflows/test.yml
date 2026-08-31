@@ -9,7 +9,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # luacheck 1.2.0 crashes on Lua 5.4+ (assigns to a for-loop variable).
       - uses: leafo/gh-actions-lua@v10
@@ -26,17 +26,21 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        luaVersion: ["5.4", "5.5"]
     env:
       CI: "true"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install OpenSSL headers
         run: sudo apt-get update && sudo apt-get install -y libssl-dev
 
       - uses: leafo/gh-actions-lua@v10
         with:
-          luaVersion: "5.4"
+          luaVersion: ${{ matrix.luaVersion }}
 
       - uses: leafo/gh-actions-luarocks@v4
 
@@ -56,6 +60,10 @@ jobs:
 
       - name: Setup geckodriver
         uses: browser-actions/setup-geckodriver@latest
+
+      - name: Setup Edge
+        uses: browser-actions/setup-edge@v1
+        continue-on-error: true
 
       - name: Run local suites
         env:

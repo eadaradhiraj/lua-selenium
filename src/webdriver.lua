@@ -7,9 +7,20 @@ local utf8 = require("utf8")
 
 local https
 
+---@class WebDriver
+---@field session_id string
+---@field server_url string
+---@field base_url string
+---@field browser_name string
+---@field capabilities table
+---@field websocket_url string|nil
+---@field download_dir string|nil
 local WebDriver = {}
 WebDriver.__index = WebDriver
 
+---@class WebElement
+---@field id string
+---@field driver WebDriver
 local WebElement = {}
 WebElement.__index = WebElement
 
@@ -200,6 +211,57 @@ end
 local function normalize_browser(name)
     name = name or "chrome"
     return BROWSER_NAMES[name] or name
+end
+
+function WebDriver.is_windows(platform)
+    if platform == "windows" then
+        return true
+    end
+    if platform == "posix" then
+        return false
+    end
+    return package.config:sub(1, 1) == "\\"
+end
+
+function WebDriver.quote_shell(s, platform)
+    if WebDriver.is_windows(platform) then
+        return '"' .. tostring(s):gsub('"', '""') .. '"'
+    end
+    return shell_quote(s)
+end
+
+function WebDriver.lookup_command(bin, platform)
+    if WebDriver.is_windows(platform) then
+        return 'where "' .. tostring(bin) .. '" 2>nul'
+    end
+    return "command -v " .. shell_quote(bin) .. " 2>/dev/null"
+end
+
+function WebDriver.list_dir_command(dir, platform)
+    if WebDriver.is_windows(platform) then
+        return "dir /b " .. WebDriver.quote_shell(dir, "windows") .. " 2>nul"
+    end
+    return "find " .. shell_quote(dir) .. " -maxdepth 1 -type f 2>/dev/null"
+end
+
+function WebDriver.wrap_spawn_command(cmd, platform)
+    if WebDriver.is_windows(platform) then
+        return 'start /b "" ' .. cmd
+    end
+    return cmd ..
+        ' >/dev/null 2>&1 & pid=$!; trap "kill -TERM $pid 2>/dev/null; wait $pid 2>/dev/null" EXIT; cat >/dev/null'
+end
+
+function WebDriver.driver_command(browser, port, driver_path, platform)
+    browser = normalize_browser(browser)
+    local bin = driver_path or DRIVER_BINS[browser] or "chromedriver"
+    local q = WebDriver.quote_shell(bin, platform)
+    if browser == "firefox" then
+        return string.format("%s --port %d", q, port)
+    elseif browser == "safari" then
+        return string.format("%s -p %d", q, port)
+    end
+    return string.format("%s --port=%d --allowed-origins=* --allowed-ips=", q, port)
 end
 
 -----------------------------------------------------------
@@ -628,6 +690,10 @@ local function resolve_remote_url(options)
     return inject_auth(url, options)
 end
 
+function WebDriver.remote_url(options)
+    return resolve_remote_url(options)
+end
+
 -----------------------------------------------------------
 -- Local driver process lifecycle
 -----------------------------------------------------------
@@ -670,7 +736,7 @@ local function wait_for_port(host, port, timeout_sec)
 end
 
 local function command_exists(bin)
-    local handle = io.popen("command -v " .. shell_quote(bin) .. " 2>/dev/null")
+    local handle = io.popen(WebDriver.lookup_command(bin), "r")
     if not handle then return nil end
     local path = handle:read("*l")
     handle:close()
@@ -685,20 +751,17 @@ local function driver_command(browser, port, driver_path)
     if not driver_path and not command_exists(bin) then
         error("Driver binary not found in PATH: " .. bin)
     end
-    if browser == "firefox" then
-        return string.format("%s --port %d", shell_quote(bin), port)
-    elseif browser == "safari" then
-        return string.format("%s -p %d", shell_quote(bin), port)
-    else
-        return string.format("%s --port=%d --allowed-origins=* --allowed-ips=", shell_quote(bin), port)
-    end
+    return WebDriver.driver_command(browser, port, driver_path)
 end
 
--- Keep stdin open; GC/close of the pipe kills the driver via trap + cat EOF.
 local function spawn_driver_process(cmd)
-    local script = cmd ..
-        ' >/dev/null 2>&1 & pid=$!; trap "kill -TERM $pid 2>/dev/null; wait $pid 2>/dev/null" EXIT; cat >/dev/null'
-    local proc = io.popen("sh -c " .. shell_quote(script), "w")
+    local proc
+    if WebDriver.is_windows() then
+        proc = io.popen(WebDriver.wrap_spawn_command(cmd, "windows"), "w")
+    else
+        local script = WebDriver.wrap_spawn_command(cmd, "posix")
+        proc = io.popen("sh -c " .. shell_quote(script), "w")
+    end
     if not proc then
         error("Failed to spawn driver process: " .. cmd)
     end
@@ -755,6 +818,11 @@ function WebDriver.has_driver(browser)
     end
     if browser == "firefox" then
         return command_exists("firefox") ~= nil
+    end
+    if browser == "MicrosoftEdge" then
+        return command_exists("microsoft-edge") ~= nil
+            or command_exists("microsoft-edge-stable") ~= nil
+            or command_exists("msedge") ~= nil
     end
     return true
 end
@@ -841,12 +909,12 @@ end
 
 local function list_download_names(dir)
     local names = {}
-    local handle = io.popen("find " .. shell_quote(dir) .. " -maxdepth 1 -type f 2>/dev/null")
+    local handle = io.popen(WebDriver.list_dir_command(dir), "r")
     if not handle then
         return names
     end
     for line in handle:lines() do
-        local name = line:match("([^/]+)$")
+        local name = line:match("([^/\\]+)$")
         if name and #name > 0 then
             names[#names + 1] = name
         end
@@ -1074,7 +1142,15 @@ function WebDriver:save_screenshot(filename)
 end
 
 function WebDriver:print_page(opts)
-    return request("POST", self.base_url .. "/print", opts or {})
+    opts = opts or {}
+    local payload = copy_table(opts)
+    if payload.shrink_to_fit ~= nil and payload.shrinkToFit == nil then
+        payload.shrinkToFit = payload.shrink_to_fit
+    end
+    if payload.page_ranges ~= nil and payload.pageRanges == nil then
+        payload.pageRanges = payload.page_ranges
+    end
+    return request("POST", self.base_url .. "/print", payload)
 end
 
 -- Selenium-style browser logs. Prefers /se/log, then /log, then BiDi console buffer.
@@ -1213,16 +1289,32 @@ end
 function WebDriver:add_credential(credential, authenticator_id)
     credential = credential or {}
     local id = webauthn_id(self, authenticator_id)
-    local body = {
-        credentialId = credential.credential_id or credential.credentialId,
-        isResidentCredential = credential.is_resident_credential
-            or credential.isResidentCredential,
-        rpId = credential.rp_id or credential.rpId,
-        privateKey = credential.private_key or credential.privateKey,
-        userHandle = credential.user_handle or credential.userHandle,
-        signCount = credential.sign_count or credential.signCount or 0,
-        largeBlob = credential.large_blob or credential.largeBlob,
-    }
+    local body = {}
+    local function put(camel, value)
+        if value ~= nil then
+            body[camel] = value
+        end
+    end
+    local function pick(a, b, default)
+        if a ~= nil then
+            return a
+        end
+        if b ~= nil then
+            return b
+        end
+        return default
+    end
+    put("credentialId", pick(credential.credential_id, credential.credentialId))
+    put("isResidentCredential", pick(
+        credential.is_resident_credential,
+        credential.isResidentCredential,
+        false
+    ))
+    put("rpId", pick(credential.rp_id, credential.rpId))
+    put("privateKey", pick(credential.private_key, credential.privateKey))
+    put("userHandle", pick(credential.user_handle, credential.userHandle))
+    put("signCount", pick(credential.sign_count, credential.signCount, 0))
+    put("largeBlob", pick(credential.large_blob, credential.largeBlob))
     return request(
         "POST",
         self.base_url .. "/webauthn/authenticator/" .. id .. "/credential",
@@ -1446,6 +1538,13 @@ function WebDriver:get_cookie(name)
 end
 
 function WebDriver:add_cookie(cookie)
+    cookie = copy_table(cookie)
+    if cookie.same_site and not cookie.sameSite then
+        cookie.sameSite = cookie.same_site
+    end
+    if cookie.http_only ~= nil and cookie.httpOnly == nil then
+        cookie.httpOnly = cookie.http_only
+    end
     return request("POST", self.base_url .. "/cookie", { cookie = cookie })
 end
 

@@ -107,6 +107,39 @@ for _, a in ipairs(fm.firstMatch[1]["goog:chromeOptions"].args) do
 end
 check("firstMatch inherits headless", fm_headless)
 
+local bstack_url = WebDriver.remote_url({
+    provider = "browserstack",
+    username = "user",
+    access_key = "key",
+})
+check("browserstack remote url", tostring(bstack_url):find("hub.browserstack.com", 1, true) ~= nil)
+local sauce_url = WebDriver.remote_url({
+    provider = "sauce",
+    username = "user",
+    access_key = "key",
+    region = "eu-central-1",
+})
+check("sauce remote url", tostring(sauce_url):find("eu-central-1.saucelabs.com", 1, true) ~= nil)
+local grid_url = WebDriver.remote_url({
+    grid_url = "http://grid.example:4444",
+    username = "u",
+    access_key = "k",
+})
+check("grid remote url auth", tostring(grid_url):find("u:k@", 1, true) ~= nil)
+
+check("posix is_windows", WebDriver.is_windows("posix") == false)
+check("windows is_windows", WebDriver.is_windows("windows") == true)
+local posix_spawn = WebDriver.wrap_spawn_command("chromedriver --port=9", "posix")
+check("posix spawn trap", posix_spawn:find("trap", 1, true) ~= nil)
+local win_spawn = WebDriver.wrap_spawn_command("chromedriver --port=9", "windows")
+check("windows spawn start", win_spawn:find("start /b", 1, true) ~= nil)
+check("windows lookup", WebDriver.lookup_command("chromedriver", "windows"):find("where", 1, true) ~= nil)
+check("posix lookup", WebDriver.lookup_command("chromedriver", "posix"):find("command -v", 1, true) ~= nil)
+local win_cmd = WebDriver.driver_command("chrome", 9515, "chromedriver.exe", "windows")
+check("windows driver quote", win_cmd:find('"chromedriver.exe"', 1, true) ~= nil)
+local win_dir = WebDriver.list_dir_command("C:\\tmp", "windows")
+check("windows list dir", win_dir:find("dir /b", 1, true) ~= nil)
+
 print("\nAuto-spawning " .. test.requested_browser() .. " + fixture...")
 local spawned_port
 local ok, err = xpcall(function()
@@ -180,6 +213,25 @@ local ok, err = xpcall(function()
     local hover = driver:find_element(By.id("hover-target"))
     driver:actions():move_to(hover):move_by(1, 1):perform()
     check_eq("move_by still on hover", attr("hover-target", "data-hovered"), "1")
+
+    driver:actions():move_to_location(2, 2):perform()
+    driver:execute_script([[
+        document.getElementById('hover-target').scrollIntoView({block:'nearest'});
+        document.getElementById('hover-target').removeAttribute('data-hovered');
+    ]])
+    local hx = driver:execute_script(
+        "var r=document.getElementById('hover-target').getBoundingClientRect(); return r.left+r.width/2;"
+    )
+    local hy = driver:execute_script(
+        "var r=document.getElementById('hover-target').getBoundingClientRect(); return r.top+r.height/2;"
+    )
+    driver:actions():move_to_location(math.floor(hx), math.floor(hy)):perform()
+    check_eq("move_to_location hover", attr("hover-target", "data-hovered"), "1")
+
+    driver:execute_script("document.getElementById('src').removeAttribute('data-down');")
+    driver:actions():click_and_hold(driver:find_element(By.id("src"))):perform()
+    driver:actions():release()
+    check("actions release", true)
 
     print("\n[Actions: wheel scroll]")
     local y = test.wheel_scroll_y(driver, 500)

@@ -44,4 +44,10 @@ else
     print("======== firefox parity skipped (geckodriver or firefox not on PATH)")
 end
 
+if WebDriver.has_driver("edge") then
+    run("LUA_SELENIUM_BROWSER=edge lua tests/api.lua", "edge tests/api.lua")
+else
+    print("======== edge live skipped (msedgedriver or Edge not on PATH)")
+end
+
 print("======== all local tests passed")

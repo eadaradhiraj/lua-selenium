@@ -2,6 +2,10 @@ local json = require("lunajson")
 local socket = require("socket")
 local WebSocket = require("webdriver.ws")
 
+---@class BiDi
+---@field driver WebDriver
+---@field websocket_url string|nil
+---@field context_id string|nil
 local BiDi = {}
 BiDi.__index = BiDi
 
@@ -94,14 +98,19 @@ function BiDi:_handle_intercept(params)
     local mock
     for _, entry in ipairs(self.mocks) do
         if url:find(entry.pattern, 1, true) or url:find(entry.pattern) then
-            mock = entry.response
+            mock = entry
             break
         end
     end
     if mock then
-        local body = mock.body or ""
-        local headers = encode_headers(mock.headers or {
-            ["Content-Type"] = mock.content_type or "application/json; charset=utf-8"
+        if mock.fail then
+            self:send("network.failRequest", { request = request_id })
+            return
+        end
+        local response = mock.response or {}
+        local body = response.body or ""
+        local headers = encode_headers(response.headers or {
+            ["Content-Type"] = response.content_type or "application/json; charset=utf-8"
         })
         -- ensure array encoding
         if #headers == 0 then
@@ -109,8 +118,8 @@ function BiDi:_handle_intercept(params)
         end
         self:send("network.provideResponse", {
             request = request_id,
-            statusCode = mock.status_code or mock.status or 200,
-            reasonPhrase = mock.reason or "OK",
+            statusCode = response.status_code or response.status or 200,
+            reasonPhrase = response.reason or "OK",
             headers = headers,
             body = { type = "string", value = body },
         })
@@ -315,6 +324,115 @@ function BiDi:mock_request(url_pattern, response)
     })
     self.intercept_id = result and result.intercept
     return self
+end
+
+function BiDi:fail_request(url_pattern)
+    table.insert(self.mocks, { pattern = url_pattern, fail = true })
+    local result = self:send("network.addIntercept", {
+        phases = json_array({ "beforeRequestSent" }),
+        urlPatterns = json_array({
+            { type = "string", pattern = url_pattern }
+        })
+    })
+    self.intercept_id = result and result.intercept
+    return self
+end
+
+function BiDi:remove_intercept(intercept)
+    intercept = intercept or self.intercept_id
+    if not intercept then
+        return
+    end
+    local res = self:send("network.removeIntercept", { intercept = intercept })
+    if intercept == self.intercept_id then
+        self.intercept_id = nil
+        self.mocks = {}
+    end
+    return res
+end
+
+function BiDi:create_context(url, opts)
+    opts = opts or {}
+    local res = self:send("browsingContext.create", {
+        type = opts.type or "tab",
+        referenceContext = opts.reference or self:get_context_id(),
+    })
+    local id = res and res.context
+    if url and id then
+        self:send("browsingContext.navigate", {
+            context = id,
+            url = url,
+            wait = opts.wait or "complete",
+        })
+    end
+    return id
+end
+
+function BiDi:close_context(context)
+    context = context or self.context_id
+    local res = self:send("browsingContext.close", { context = context })
+    if context == self.context_id then
+        self.context_id = nil
+    end
+    return res
+end
+
+function BiDi:activate(context)
+    return self:send("browsingContext.activate", {
+        context = context or self:get_context_id(),
+    })
+end
+
+function BiDi:get_cookies(opts)
+    opts = opts or {}
+    return self:send("storage.getCookies", {
+        partition = {
+            type = "context",
+            context = opts.context or self:get_context_id(),
+        }
+    })
+end
+
+function BiDi:set_cookie(cookie, opts)
+    opts = opts or {}
+    cookie = cookie or {}
+    return self:send("storage.setCookie", {
+        cookie = {
+            name = cookie.name,
+            value = {
+                type = "string",
+                value = tostring(cookie.value or ""),
+            },
+            domain = cookie.domain,
+            path = cookie.path or "/",
+            httpOnly = cookie.http_only or cookie.httpOnly,
+            secure = cookie.secure,
+            sameSite = cookie.same_site or cookie.sameSite,
+        },
+        partition = {
+            type = "context",
+            context = opts.context or self:get_context_id(),
+        }
+    })
+end
+
+function BiDi:click_at(x, y)
+    local moves = json_array({
+        { type = "pointerMove", x = x, y = y, duration = 0, origin = "viewport" },
+        { type = "pointerDown", button = 0 },
+        { type = "pointerUp", button = 0 },
+    })
+    return self:send("input.performActions", {
+        context = self:get_context_id(),
+        actions = json_array({
+            {
+                type = "pointer",
+                id = "bidi-mouse",
+                parameters = { pointerType = "mouse" },
+                actions = moves,
+            }
+        })
+    })
 end
 
 function BiDi:pump(timeout_sec)

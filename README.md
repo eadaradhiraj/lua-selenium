@@ -95,14 +95,16 @@ local gen = driver:generate_page({ name = "LoginPage", out = "pages/login_page.l
 local LoginPage = require("pages.login_page")  -- or loadfile the path
 ```
 
-This client covers the classic W3C WebDriver HTTP command set. WebDriver BiDi is a separate spec; implemented commands include console logs, exceptions, `mock_request`, `get_tree`, `reload`, `evaluate`, `call_function`, and `capture_screenshot`. `element:is_displayed()` is a JSON Wire leftover (W3C dropped it).
+This client covers the classic W3C WebDriver HTTP command set. WebDriver BiDi commands include console logs, exceptions, `mock_request`, `fail_request`, `remove_intercept`, `get_tree`, `create_context` / `close_context`, `reload`, `evaluate`, `call_function`, `capture_screenshot`, `get_cookies`, and `click_at`. `element:is_displayed()` is a JSON Wire leftover (W3C dropped it).
+
+LuaLS: `.luarc.json` plus `---@class` annotations on `WebDriver`, `WebElement`, and `BiDi`. Wikipedia examples stay opt-in.
 
 ## Tests
 
 Run from the repository root:
 
 ```bash
-lua tests/run.lua                        -- Chrome suites, then Firefox when geckodriver is present
+lua tests/run.lua                        -- Chrome, then Firefox, then Edge when drivers exist
 LUA_SELENIUM_BROWSER=firefox lua tests/api.lua
 lua tests/run_spec.lua                   -- Busted example spec (no busted package required)
 lua examples/wikipedia.lua               -- smoke; skips if offline; not part of tests/run.lua

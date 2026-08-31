@@ -1,4 +1,6 @@
 dofile("tests/env.lua")
+local WebDriver = require("webdriver")
+local By = WebDriver.By
 local test = require("webdriver.test")
 
 local passed = 0
@@ -115,6 +117,72 @@ local ok, err = xpcall(function()
 
         local shot = bidi:capture_screenshot()
         check("captureScreenshot", type(shot) == "string" and #shot > 100)
+
+        print("\n[BiDi network / context / storage / input]")
+        pcall(function() bidi:remove_intercept() end)
+        local fail_ok, fail_err = pcall(function()
+            bidi:fail_request(api_url)
+            driver:execute_script([[
+                window.__blocked = null;
+                fetch('/api.json').then(function() {
+                    window.__blocked = 'ok';
+                }).catch(function() {
+                    window.__blocked = 'fail';
+                });
+                return true;
+            ]])
+            return driver:wait_until(function(d)
+                bidi:pump(0.2)
+                return d:execute_script("return window.__blocked;")
+            end, 8)
+        end)
+        if fail_ok then
+            check("failRequest", fail_err == "fail", "got " .. tostring(fail_err))
+        else
+            print("  SKIP  failRequest — " .. tostring(fail_err):sub(1, 90))
+        end
+        pcall(function() bidi:remove_intercept() end)
+
+        driver:add_cookie({ name = "bidi_ck", value = "1", path = "/" })
+        local cook_ok, cook_res = pcall(function()
+            return bidi:get_cookies()
+        end)
+        if cook_ok then
+            check("storage.getCookies", type(cook_res) == "table")
+        else
+            print("  SKIP  storage.getCookies — " .. tostring(cook_res):sub(1, 90))
+        end
+
+        local created
+        local create_ok, create_res = pcall(function()
+            created = bidi:create_context("data:text/html,<title>bidi-tab</title>")
+            return created
+        end)
+        if create_ok and created then
+            check("browsingContext.create", type(created) == "string" and #created > 0)
+            pcall(function() bidi:close_context(created) end)
+            pcall(function() bidi:activate() end)
+            check("browsingContext.close", true)
+        else
+            print("  SKIP  browsingContext.create — " .. tostring(create_res):sub(1, 90))
+        end
+
+        driver:execute_script("document.getElementById('shift-target').removeAttribute('data-shift');")
+        local box = driver:execute_script([[
+            var r = document.getElementById('shift-target').getBoundingClientRect();
+            return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+        ]])
+        local click_ok, click_err = pcall(function()
+            bidi:click_at(math.floor(box.x), math.floor(box.y))
+        end)
+        if click_ok then
+            local shifted = driver:wait_until(function(d)
+                return d:find_element(By.id("shift-target")):get_attribute("data-shift")
+            end, 3)
+            check("input.performActions click", shifted ~= nil)
+        else
+            print("  SKIP  input.performActions — " .. tostring(click_err):sub(1, 90))
+        end
 
         print("\n[CDP]")
         if driver:is_chromium() then

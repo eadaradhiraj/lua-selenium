@@ -155,7 +155,29 @@ local ok, err = xpcall(function()
     for _, c in ipairs(after_delete) do
         if c.name == "lua_session" then still_there = true end
     end
-        check("cookie deleted", not still_there)
+    check("cookie deleted", not still_there)
+
+    local expiry = os.time() + 3600
+    local same_ok, same_err = pcall(function()
+        driver:add_cookie({
+            name = "lua_samesite",
+            value = "1",
+            path = "/",
+            same_site = "Lax",
+            http_only = true,
+            expiry = expiry,
+        })
+    end)
+    if same_ok then
+        local sc = driver:get_cookie("lua_samesite")
+        local site = sc and tostring(sc.sameSite or sc.same_site or "")
+        check("cookie sameSite", site:lower() == "lax", "got " .. site)
+        if sc.httpOnly ~= nil or sc.http_only ~= nil then
+            check("cookie httpOnly", sc.httpOnly == true or sc.http_only == true)
+        end
+    else
+        print("  SKIP  cookie sameSite — " .. tostring(same_err):sub(1, 90))
+    end
     end)
 end, debug.traceback)
 

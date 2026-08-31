@@ -1,4 +1,5 @@
 -- Assertion helpers and session fixtures for Lua test runners (busted, telescope, or plain Lua).
+---@class webdriver.test
 local M = {}
 
 local function fmt(value)

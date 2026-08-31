@@ -15,7 +15,8 @@ To **install** (`luarocks install git+https://…`):
 
 To **run** a session (auto-spawn):
 
-- A browser **and** its driver on `PATH`: Chromium/Chrome + `chromedriver`, or Firefox + `geckodriver`
+- A browser **and** its driver on `PATH`: Chromium/Chrome + `chromedriver`, Firefox + `geckodriver`, or Edge + `msedgedriver`
+- Optional binaries: `CHROME_BIN`, `FIREFOX_BIN`, `EDGE_BIN`
 - POSIX `sh` (Linux/macOS). The driver is spawned with a shell pipe
 
 `luasec` is only used for `https://` remote grids and `wss://` BiDi. Local `http://127.0.0.1` ChromeDriver talks HTTP. `utf8`, `ltn12`, and `mime` come with Lua 5.3+ / luasocket. Busted is not required.
@@ -25,7 +26,7 @@ sudo pacman -S lua luarocks git base-devel openssl chromium chromedriver
 luarocks install git+https://github.com/eadaradhiraj/lua-selenium.git
 ```
 
-Firefox tests also need `firefox` and `geckodriver`. The installed rock is the library only; `lua tests/run.lua` needs a git clone of this repo.
+Firefox tests also need `firefox` and `geckodriver`. Edge tests need `msedgedriver` and Edge (`microsoft-edge`, `microsoft-edge-stable`, or `msedge`). The installed rock is the library only; `lua tests/run.lua` needs a git clone of this repo. GitHub Actions runs that suite on Lua 5.3, 5.4, and 5.5 (Chrome, Firefox, and Edge).
 
 Linting uses [luacheck](https://github.com/lunarmodules/luacheck). Version 1.2.0 cannot run on Lua 5.4 or 5.5 (it assigns to a for-loop variable). Install it for 5.1:
 
@@ -59,7 +60,7 @@ lua examples/example.lua
 WebDriver.new({
     headless = true,
     browser_name = "chrome",   -- firefox, safari, edge
-    bidi = true,               -- WebSocket BiDi (Chrome and Firefox: console, mock_request)
+    bidi = true,               -- WebSocket BiDi (Chrome and Firefox)
     server_url = "http://127.0.0.1:9515",  -- attach instead of spawning
     args = { "--no-sandbox" },
     download_dir = "/tmp/downloads",
@@ -84,7 +85,7 @@ WebDriver.build_capabilities({
 })
 ```
 
-`set_session_storage` / `get_session_storage` / `clear_session_storage` mirror the localStorage helpers. `driver:set_permission("geolocation", "denied", { origin = origin })` is the Permissions automation command. Virtual authenticators: `add_virtual_authenticator`, `get_credentials`, `set_user_verified`, `remove_virtual_authenticator`.
+`set_session_storage` / `get_session_storage` / `clear_session_storage` mirror the localStorage helpers. `driver:set_permission("geolocation", "denied", { origin = origin })` is the Permissions automation command. Virtual authenticators: `add_virtual_authenticator`, `add_credential` / `get_credentials` / `remove_credential`, `set_user_verified`, `remove_virtual_authenticator`. PKCS#8 keys and credential ids are sent as unpadded base64url.
 
 Closed shadow trees (Chrome/Edge): `host:shadow_root({ pierce = true })` or `host:find_in_shadow(By.id("inside"))`. Open roots work with `host:shadow_root()` on all browsers.
 
@@ -104,7 +105,7 @@ LuaLS: `.luarc.json` plus `---@class` annotations on `WebDriver`, `WebElement`, 
 Run from the repository root:
 
 ```bash
-lua tests/run.lua                        -- Chrome, then Firefox, then Edge when drivers exist
+lua tests/run.lua                        -- Chrome, then Firefox, then Edge when each driver exists
 LUA_SELENIUM_BROWSER=firefox lua tests/api.lua
 lua tests/run_spec.lua                   -- Busted example spec (no busted package required)
 lua examples/wikipedia.lua               -- smoke; skips if offline; not part of tests/run.lua
@@ -127,7 +128,7 @@ luarocks make luaselenium-scm-1.rockspec
 | `src/webdriver.lua` | Client: session, locators, actions, waits, POM |
 | `src/webdriver/ws.lua` / `bidi.lua` | BiDi over WebSockets (`require("webdriver.ws")`) |
 | `src/webdriver/test.lua` | Assertions + `with_local_session` (`require("webdriver.test")`) |
-| `tests/` | Local Chrome/Firefox suite and HTML fixture |
+| `tests/` | Local Chrome / Firefox / Edge suite and HTML fixture |
 | `examples/` | Offline smoke and optional Wikipedia scripts |
 | `docs/SPEC.md` | Done / remaining / iteration log |
 | `.luacheckrc` | luacheck config (`./scripts/lint.sh`) |

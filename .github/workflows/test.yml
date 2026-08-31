@@ -9,14 +9,14 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       # luacheck 1.2.0 crashes on Lua 5.4+ (assigns to a for-loop variable).
-      - uses: leafo/gh-actions-lua@v10
+      - uses: leafo/gh-actions-lua@v13
         with:
           luaVersion: "5.1"
 
-      - uses: leafo/gh-actions-luarocks@v4
+      - uses: leafo/gh-actions-luarocks@v6
 
       - name: Install luacheck
         run: luarocks install luacheck
@@ -29,20 +29,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        luaVersion: ["5.4", "5.5"]
+        luaVersion: ["5.3", "5.4", "5.5"]
     env:
       CI: "true"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install OpenSSL headers
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev unzip
 
-      - uses: leafo/gh-actions-lua@v10
+      - uses: leafo/gh-actions-lua@v13
         with:
           luaVersion: ${{ matrix.luaVersion }}
 
-      - uses: leafo/gh-actions-luarocks@v4
+      - uses: leafo/gh-actions-luarocks@v6
 
       - name: Install Lua rocks
         run: luarocks install luasocket && luarocks install lunajson && luarocks install luasec
@@ -62,10 +62,28 @@ jobs:
         uses: browser-actions/setup-geckodriver@latest
 
       - name: Setup Edge
+        id: edge
         uses: browser-actions/setup-edge@v1
-        continue-on-error: true
+
+      - name: Install msedgedriver
+        run: |
+          set -euo pipefail
+          EDGE_BIN="${{ steps.edge.outputs.edge-path }}"
+          if [ -z "$EDGE_BIN" ] || [ ! -x "$EDGE_BIN" ]; then
+            EDGE_BIN="$(command -v microsoft-edge || command -v microsoft-edge-stable || command -v msedge)"
+          fi
+          test -n "$EDGE_BIN"
+          echo "$(dirname "$EDGE_BIN")" >> "$GITHUB_PATH"
+          VER="$("$EDGE_BIN" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          echo "Edge $VER at $EDGE_BIN"
+          curl -fsSL -o /tmp/edgedriver.zip \
+            "https://msedgedriver.microsoft.com/${VER}/edgedriver_linux64.zip"
+          unzip -o /tmp/edgedriver.zip -d /tmp/edgedriver
+          sudo install -m 0755 /tmp/edgedriver/msedgedriver /usr/local/bin/msedgedriver
+          msedgedriver --version
 
       - name: Run local suites
         env:
           CHROME_BIN: ${{ steps.chrome.outputs.chrome-path }}
+          EDGE_BIN: ${{ steps.edge.outputs.edge-path }}
         run: lua tests/run.lua

@@ -530,6 +530,8 @@ local function build_browser_match(options)
         local args = {}
         if headless then
             table.insert(args, "-headless")
+            table.insert(args, "-width=1920")
+            table.insert(args, "-height=1080")
         end
         append_args(args, ff.args)
         append_args(args, extra_args)
@@ -560,6 +562,7 @@ local function build_browser_match(options)
         if headless then
             table.insert(args, "--headless=new")
             table.insert(args, "--disable-gpu")
+            table.insert(args, "--window-size=1920,1080")
         end
         if os.getenv("CI") then
             table.insert(args, "--no-sandbox")
@@ -571,7 +574,7 @@ local function build_browser_match(options)
         append_args(args, edge.args)
         append_args(args, extra_args)
         edge.args = json_array(args)
-        local edge_bin = options.binary or os.getenv("CHROME_BIN")
+        local edge_bin = options.binary or os.getenv("EDGE_BIN")
         if edge_bin then edge.binary = edge_bin end
         edge.prefs = merge_prefs(edge.prefs, options.chrome_prefs or options.prefs)
         if download_dir then
@@ -1286,6 +1289,14 @@ function WebDriver:remove_virtual_authenticator(authenticator_id)
     return true
 end
 
+-- Chrome (and Chromium-based Edge) require WebAuthn blobs as unpadded base64url.
+local function webauthn_b64url(value)
+    if type(value) ~= "string" then
+        return value
+    end
+    return (value:gsub("%s+", ""):gsub("+", "-"):gsub("/", "_"):gsub("=+$", ""))
+end
+
 function WebDriver:add_credential(credential, authenticator_id)
     credential = credential or {}
     local id = webauthn_id(self, authenticator_id)
@@ -1304,17 +1315,17 @@ function WebDriver:add_credential(credential, authenticator_id)
         end
         return default
     end
-    put("credentialId", pick(credential.credential_id, credential.credentialId))
+    put("credentialId", webauthn_b64url(pick(credential.credential_id, credential.credentialId)))
     put("isResidentCredential", pick(
         credential.is_resident_credential,
         credential.isResidentCredential,
         false
     ))
     put("rpId", pick(credential.rp_id, credential.rpId))
-    put("privateKey", pick(credential.private_key, credential.privateKey))
-    put("userHandle", pick(credential.user_handle, credential.userHandle))
+    put("privateKey", webauthn_b64url(pick(credential.private_key, credential.privateKey)))
+    put("userHandle", webauthn_b64url(pick(credential.user_handle, credential.userHandle)))
     put("signCount", pick(credential.sign_count, credential.signCount, 0))
-    put("largeBlob", pick(credential.large_blob, credential.largeBlob))
+    put("largeBlob", webauthn_b64url(pick(credential.large_blob, credential.largeBlob)))
     return request(
         "POST",
         self.base_url .. "/webauthn/authenticator/" .. id .. "/credential",

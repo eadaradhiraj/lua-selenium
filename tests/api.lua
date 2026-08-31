@@ -280,33 +280,29 @@ local ok, err = xpcall(function()
             local creds = driver:get_credentials()
             check("credentials list", type(creds) == "table")
             driver:set_user_verified(true)
-            local mime = require("mime")
-            local cred_id = (mime.b64("lua-selenium-cred") or "")
-                :gsub("+", "-"):gsub("/", "_"):gsub("=", "")
-            local pk = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg8nWQvElkFPZNhI0b"
-                .. "/4Zayx8gu9qAqHE6GQLbOH3pZ9uhRANCAAS/o2e1IkdqjKXkpL4L8jKwT5yrn6aV"
-                .. "9mR8vSO4xXy0BdU3uwuSztnMJrTvkcHxGAvddnZNuk5rB5pjTikpKNr3"
+            -- Selenium's documented EC256 PKCS#8 key (unpadded base64url).
+            local cred_id = "AQIDBA"
+            local pk = "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg8_zMDQDYAxlU-Q"
+                .. "hk1Dwkf0v18GZca1DMF3SaJ9HPdmShRANCAASNYX5lyVCOZLzFZzrIKmeZ2jwU"
+                .. "RmgsJYxGP__fWN_S-j5sN4tT15XEpN_7QZnt14YvI6uvAgO0uJEboFaZlOEB"
             local host = driver:execute_script("return location.hostname;") or "127.0.0.1"
-            local add_ok, add_err = pcall(function()
-                driver:add_credential({
-                    credential_id = cred_id,
-                    is_resident_credential = true,
-                    rp_id = host,
-                    private_key = pk,
-                    user_handle = (mime.b64("user") or "")
-                        :gsub("+", "-"):gsub("/", "_"):gsub("=", ""),
-                    sign_count = 1,
-                })
-            end)
-            if add_ok then
-                local after_add = driver:get_credentials()
-                check("add_credential", type(after_add) == "table" and #after_add >= 1)
-                driver:remove_credential(cred_id)
-                local after_del = driver:get_credentials()
-                check("remove_credential", type(after_del) == "table")
-            else
-                print("  SKIP  add_credential — " .. tostring(add_err):sub(1, 90))
+            driver:add_credential({
+                credential_id = cred_id,
+                is_resident_credential = false,
+                rp_id = host,
+                private_key = pk,
+                sign_count = 0,
+            })
+            local after_add = driver:get_credentials()
+            check("add_credential", type(after_add) == "table" and #after_add >= 1)
+            local listed = after_add[1]
+            local listed_id = cred_id
+            if type(listed) == "table" then
+                listed_id = listed.credentialId or listed.credential_id or listed.id or cred_id
             end
+            driver:remove_credential(listed_id)
+            local after_del = driver:get_credentials()
+            check("remove_credential", type(after_del) == "table")
             driver:remove_all_credentials()
             driver:remove_virtual_authenticator()
             check("remove virtual authenticator", true)

@@ -153,6 +153,25 @@ local ok, err = xpcall(function()
             print("  SKIP  storage.getCookies — " .. tostring(cook_res):sub(1, 90))
         end
 
+        driver:execute_script("document.getElementById('shift-target').removeAttribute('data-shift');")
+        local box = driver:execute_script([[
+            var el = document.getElementById('shift-target');
+            el.scrollIntoView({block: 'center', inline: 'center'});
+            var r = el.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        ]])
+        local click_ok, click_err = pcall(function()
+            bidi:click_at(math.floor(box.x), math.floor(box.y))
+        end)
+        if click_ok then
+            local shifted = driver:wait_until(function(d)
+                return d:find_element(By.id("shift-target")):get_attribute("data-shift")
+            end, 3)
+            check("input.performActions click", shifted ~= nil)
+        else
+            check("input.performActions click", false, tostring(click_err))
+        end
+
         local created
         local create_ok, create_res = pcall(function()
             created = bidi:create_context("data:text/html,<title>bidi-tab</title>")
@@ -165,23 +184,6 @@ local ok, err = xpcall(function()
             check("browsingContext.close", true)
         else
             print("  SKIP  browsingContext.create — " .. tostring(create_res):sub(1, 90))
-        end
-
-        driver:execute_script("document.getElementById('shift-target').removeAttribute('data-shift');")
-        local box = driver:execute_script([[
-            var r = document.getElementById('shift-target').getBoundingClientRect();
-            return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-        ]])
-        local click_ok, click_err = pcall(function()
-            bidi:click_at(math.floor(box.x), math.floor(box.y))
-        end)
-        if click_ok then
-            local shifted = driver:wait_until(function(d)
-                return d:find_element(By.id("shift-target")):get_attribute("data-shift")
-            end, 3)
-            check("input.performActions click", shifted ~= nil)
-        else
-            print("  SKIP  input.performActions — " .. tostring(click_err):sub(1, 90))
         end
 
         print("\n[CDP]")

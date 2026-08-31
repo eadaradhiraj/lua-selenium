@@ -1184,13 +1184,9 @@ function WebDriver:switch_to_frame(target)
         return request("POST", self.base_url .. "/frame", '{"id":null}')
     end
 
-    local id
-    if type(target) == "number" then
-        id = target
-    elseif type(target) == "table" and target.id then
+    local id = target
+    if type(target) == "table" and target.id then
         id = element_ref(target)
-    else
-        id = target
     end
     return request("POST", self.base_url .. "/frame", { id = id })
 end

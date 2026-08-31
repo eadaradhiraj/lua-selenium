@@ -332,8 +332,6 @@ function WebSocket:recv_text()
             return nil, "closed"
         elseif opcode == 0x9 then
             self:send_pong(payload)
-        elseif opcode == 0xA then
-            -- pong
         elseif opcode == 0x1 or opcode == 0x0 then
             if opcode == 0x0 and #collected == 0 then
                 return nil, "protocol error (orphan continuation)"
@@ -342,7 +340,7 @@ function WebSocket:recv_text()
             if fin then
                 return table.concat(collected)
             end
-        else
+        elseif opcode ~= 0xA then
             return nil, "protocol error (unknown opcode " .. tostring(opcode) .. ")"
         end
     end

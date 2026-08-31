@@ -27,6 +27,14 @@ luarocks install git+https://github.com/eadaradhiraj/lua-selenium.git
 
 Firefox tests also need `firefox` and `geckodriver`. The installed rock is the library only; `lua tests/run.lua` needs a git clone of this repo.
 
+Linting uses [luacheck](https://github.com/lunarmodules/luacheck). Version 1.2.0 cannot run on Lua 5.4 or 5.5 (it assigns to a for-loop variable). Install it for 5.1:
+
+```bash
+luarocks --lua-version 5.1 --local install luacheck
+export PATH="$HOME/.luarocks/bin:$PATH"
+./scripts/lint.sh
+```
+
 ## Quick start
 
 ```lua
@@ -83,6 +91,7 @@ Run from the repository root:
 lua tests/run.lua                        -- Chrome suites, then Firefox when geckodriver is present
 LUA_SELENIUM_BROWSER=firefox lua tests/api.lua
 lua examples/wikipedia.lua               -- smoke; skips if offline
+./scripts/lint.sh                        -- luacheck (needs a Lua 5.1 luacheck; 5.4/5.5 crash)
 ```
 
 ## Install
@@ -104,3 +113,4 @@ luarocks make luaselenium-scm-1.rockspec
 | `tests/` | Local Chrome/Firefox suite and HTML fixture |
 | `examples/` | Offline smoke and optional Wikipedia scripts |
 | `docs/SPEC.md` | Done / remaining / iteration log |
+| `.luacheckrc` | luacheck config (`./scripts/lint.sh`) |

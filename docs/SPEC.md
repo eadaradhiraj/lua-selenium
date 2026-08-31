@@ -65,7 +65,7 @@
 * **Shadow DOM**: open roots via `element:shadow_root()`; finds from a shadow root use W3C `POST /shadow/{id}/element` (required by Gecko). Closed roots via `shadow_root({ pierce = true })` / `pierce_shadow()` / `find_in_shadow` (Chromium CDP). Slot helpers: `assigned_slot`, `assigned_nodes`, `assigned_elements`.
 * **Live browsers**: `lua tests/run.lua` runs the local suites on Chrome, then again on Firefox (`LUA_SELENIUM_BROWSER=firefox`) when `geckodriver` is on PATH. That includes BiDi console logs and `mock_request`. Shadow-root finds use W3C `/shadow/{id}/element` (Gecko requires it). CDP pierce and `goog:loggingPrefs` stay Chromium-only. Safari is out of scope.
 * **Launch / downloads**: `download_dir` (Chrome prefs + CDP `setDownloadBehavior`, Firefox `moz:firefoxOptions.prefs`). `user_data_dir` (Chrome/Edge `--user-data-dir`). `firefox_prefs` / `chrome_prefs`. `driver:wait_for_download(name, timeout)` waits for a finished file (ignores `.crdownload` / `.part`, requires stable non-empty size).
-* **Packaging**: `src/webdriver.lua` with submodules `webdriver.ws`, `webdriver.bidi`, `webdriver.test`. SCM rockspec only (`luaselenium-scm-1.rockspec`); install from git. GitHub Actions runs `lua tests/run.lua`. CI Chromium sessions add `--no-sandbox` / `--disable-dev-shm-usage`.
+* **Packaging**: `src/webdriver.lua` with submodules `webdriver.ws`, `webdriver.bidi`, `webdriver.test`. SCM rockspec only (`luaselenium-scm-1.rockspec`); install from git. GitHub Actions runs `lua tests/run.lua`. CI Chromium sessions add `--no-sandbox` / `--disable-dev-shm-usage`. Linting is `luacheck` (Lua 5.1 in CI; 5.4/5.5 cannot run luacheck 1.2.0).
 
 ---
 
@@ -159,4 +159,8 @@ What landed each pass, and what was left afterward.
 
 ### Iteration 17 — drop numbered rockspec
 **Done:** Removed `luaselenium-0.1.0-1.rockspec` and tag `v0.1.0`. SCM rockspec only. Dropped unused `CHROME_PATH` and `LUA_SELENIUM_FIXTURE`.
+**Yet to do:** Safari out of scope; closed pierce Chromium-only.
+
+### Iteration 18 — luacheck
+**Done:** `.luacheckrc` + `scripts/lint.sh`. CI lint job runs luacheck on Lua 5.1 (1.2.0 crashes on 5.4/5.5). Tightened `switch_to_frame` and WebSocket pong handling for the linter.
 **Yet to do:** Safari out of scope; closed pierce Chromium-only.

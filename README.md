@@ -72,6 +72,20 @@ Timeouts: `wait_until` and `implicitly_wait` / `set_page_load_timeout` / `set_sc
 
 `driver:wait_for_download("report.pdf")` polls `download_dir` until a finished file appears. `driver:scroll(0, 400)` is the W3C wheel action. `driver:status()` is `GET /status`.
 
+`first_match` is W3C `firstMatch` (shared fields stay in `alwaysMatch`):
+
+```lua
+WebDriver.build_capabilities({
+    accept_insecure_certs = true,
+    first_match = {
+        { browser_name = "chrome" },
+        { browser_name = "firefox" },
+    }
+})
+```
+
+`set_session_storage` / `get_session_storage` / `clear_session_storage` mirror the localStorage helpers. `driver:set_permission("geolocation", "denied", { origin = origin })` is the Permissions automation command. Virtual authenticators: `add_virtual_authenticator`, `get_credentials`, `set_user_verified`, `remove_virtual_authenticator`.
+
 Closed shadow trees (Chrome/Edge): `host:shadow_root({ pierce = true })` or `host:find_in_shadow(By.id("inside"))`. Open roots work with `host:shadow_root()` on all browsers.
 
 Generate a page object from the current DOM:
@@ -81,7 +95,7 @@ local gen = driver:generate_page({ name = "LoginPage", out = "pages/login_page.l
 local LoginPage = require("pages.login_page")  -- or loadfile the path
 ```
 
-This client covers the classic W3C WebDriver HTTP command set. WebDriver BiDi is a separate spec; only console logs, exceptions, and `mock_request` are implemented. `element:is_displayed()` is a JSON Wire leftover (W3C dropped it).
+This client covers the classic W3C WebDriver HTTP command set. WebDriver BiDi is a separate spec; implemented commands include console logs, exceptions, `mock_request`, `get_tree`, `reload`, `evaluate`, `call_function`, and `capture_screenshot`. `element:is_displayed()` is a JSON Wire leftover (W3C dropped it).
 
 ## Tests
 
@@ -90,7 +104,8 @@ Run from the repository root:
 ```bash
 lua tests/run.lua                        -- Chrome suites, then Firefox when geckodriver is present
 LUA_SELENIUM_BROWSER=firefox lua tests/api.lua
-lua examples/wikipedia.lua               -- smoke; skips if offline
+lua tests/run_spec.lua                   -- Busted example spec (no busted package required)
+lua examples/wikipedia.lua               -- smoke; skips if offline; not part of tests/run.lua
 ./scripts/lint.sh                        -- luacheck (needs a Lua 5.1 luacheck; 5.4/5.5 crash)
 ```
 

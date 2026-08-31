@@ -1,4 +1,6 @@
 -- Run local suite (no Wikipedia / external network).
+-- examples/wikipedia.lua and wikipedia_advanced.lua stay opt-in: they skip
+-- when Wikipedia is unreachable and are not listed here.
 -- Chrome first, then the W3C suites again on Firefox when geckodriver is present.
 dofile("tests/env.lua")
 
@@ -8,6 +10,7 @@ local chrome_tests = {
     "tests/phase2.lua",
     "tests/phase3.lua",
     "tests/pom.lua",
+    "tests/run_spec.lua",
     "examples/example.lua",
 }
 

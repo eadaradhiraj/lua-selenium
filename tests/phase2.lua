@@ -86,6 +86,27 @@ local ff_dl = WebDriver.build_capabilities({
 local ff_prefs = ff_dl.alwaysMatch["moz:firefoxOptions"].prefs
 check_eq("firefox download pref", ff_prefs["browser.download.dir"], "/tmp/lua-selenium-dl-caps")
 
+local fm = WebDriver.build_capabilities({
+    headless = true,
+    accept_insecure_certs = true,
+    first_match = {
+        { browser_name = "chrome" },
+        { browser_name = "firefox" },
+    }
+})
+check("firstMatch length", fm.firstMatch and #fm.firstMatch == 2)
+check_eq("firstMatch chrome", fm.firstMatch[1].browserName, "chrome")
+check_eq("firstMatch firefox", fm.firstMatch[2].browserName, "firefox")
+check("alwaysMatch has no browserName", fm.alwaysMatch.browserName == nil)
+check("alwaysMatch acceptInsecureCerts", fm.alwaysMatch.acceptInsecureCerts == true)
+check("chrome options in firstMatch", fm.firstMatch[1]["goog:chromeOptions"] ~= nil)
+check("firefox options in firstMatch", fm.firstMatch[2]["moz:firefoxOptions"] ~= nil)
+local fm_headless = false
+for _, a in ipairs(fm.firstMatch[1]["goog:chromeOptions"].args) do
+    if a == "--headless=new" then fm_headless = true end
+end
+check("firstMatch inherits headless", fm_headless)
+
 print("\nAuto-spawning " .. test.requested_browser() .. " + fixture...")
 local spawned_port
 local ok, err = xpcall(function()
@@ -144,6 +165,21 @@ local ok, err = xpcall(function()
         :key_up(Keys.SHIFT)
         :perform()
     check_eq("Shift+Click", attr("shift-target", "data-shift"), "1")
+
+    print("\n[Actions: pause / move_by / click_and_hold]")
+    driver:execute_script("document.getElementById('src').removeAttribute('data-down');")
+    driver:actions()
+        :pause(20)
+        :click_and_hold(driver:find_element(By.id("src")))
+        :pause(20)
+        :perform()
+    check_eq("click_and_hold mousedown", attr("src", "data-down"), "1")
+    driver:actions():release_pointer():perform()
+
+    driver:execute_script("document.getElementById('hover-target').removeAttribute('data-hovered');")
+    local hover = driver:find_element(By.id("hover-target"))
+    driver:actions():move_to(hover):move_by(1, 1):perform()
+    check_eq("move_by still on hover", attr("hover-target", "data-hovered"), "1")
 
     print("\n[Actions: wheel scroll]")
     local y = test.wheel_scroll_y(driver, 500)

@@ -195,17 +195,106 @@ function BiDi:on(method, fn)
     return self
 end
 
+function BiDi:get_tree()
+    return self:send("browsingContext.getTree", {})
+end
+
 function BiDi:get_context_id()
     if self.context_id then
         return self.context_id
     end
-    local tree = self:send("browsingContext.getTree", {})
+    local tree = self:get_tree()
     local contexts = tree and tree.contexts
     if contexts and contexts[1] then
         self.context_id = contexts[1].context
         return self.context_id
     end
     error("No BiDi browsing context available")
+end
+
+function BiDi:reload(wait)
+    return self:send("browsingContext.reload", {
+        context = self:get_context_id(),
+        wait = wait or "complete",
+    })
+end
+
+function BiDi:capture_screenshot()
+    local res = self:send("browsingContext.captureScreenshot", {
+        context = self:get_context_id(),
+    })
+    return res and res.data
+end
+
+local function bidi_remote_value(remote)
+    if type(remote) ~= "table" then
+        return remote
+    end
+    if remote.type == "undefined" or remote.type == "null" then
+        return nil
+    end
+    if remote.value ~= nil then
+        return remote.value
+    end
+    return remote
+end
+
+local function bidi_script_result(res)
+    if type(res) ~= "table" then
+        return res
+    end
+    if res.type == "exception" then
+        local detail = res.exceptionDetails or {}
+        error("BiDi script exception: " .. tostring(detail.text or "unknown"))
+    end
+    return bidi_remote_value(res.result or res)
+end
+
+local function bidi_local_value(value)
+    local t = type(value)
+    if value == nil then
+        return { type = "undefined" }
+    end
+    if t == "boolean" then
+        return { type = "boolean", value = value }
+    end
+    if t == "number" then
+        return { type = "number", value = value }
+    end
+    if t == "string" then
+        return { type = "string", value = value }
+    end
+    error("BiDi local value type not supported: " .. t)
+end
+
+function BiDi:evaluate(expression, opts)
+    opts = opts or {}
+    local res = self:send("script.evaluate", {
+        expression = expression,
+        target = { context = opts.context or self:get_context_id() },
+        awaitPromise = opts.await_promise == true,
+        resultOwnership = opts.result_ownership or "none",
+    })
+    return bidi_script_result(res)
+end
+
+function BiDi:call_function(declaration, args, opts)
+    opts = opts or {}
+    local arguments = {}
+    if type(args) == "table" then
+        for i, value in ipairs(args) do
+            arguments[i] = bidi_local_value(value)
+        end
+    end
+    local res = self:send("script.callFunction", {
+        functionDeclaration = declaration,
+        arguments = json_array(arguments),
+        this = { type = "undefined" },
+        target = { context = opts.context or self:get_context_id() },
+        awaitPromise = opts.await_promise == true,
+        resultOwnership = opts.result_ownership or "none",
+    })
+    return bidi_script_result(res)
 end
 
 function BiDi:navigate(url, wait)

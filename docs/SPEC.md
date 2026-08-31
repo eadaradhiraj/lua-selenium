@@ -17,7 +17,7 @@
 * **JSON Array/Object Serialization Fix**: Resolved Lua table ambiguity where empty tables `{}` serialize as JSON objects `{}` instead of JSON arrays `[]`. Added `json_array()` with `[0] = 0` array length metadata so endpoints like `/execute/sync` and `/value` receive compliant JSON lists.
 
 ### 3. Session & Lifecycle Management
-* **Session Initialization**: `POST /session` with standard `alwaysMatch` capability configuration.
+* **Session Initialization**: `POST /session` with `alwaysMatch` and optional `firstMatch` (`first_match` option / `WebDriver.build_capabilities`).
 * **Headless Mode Support**: Configured `goog:chromeOptions` with `--headless=new`, `--disable-gpu`, and window dimensions.
 * **Session Teardown**: `DELETE /session/{id}` to terminate browser instances cleanly.
 
@@ -58,13 +58,14 @@
 * **Multi-Browser Capabilities**: `goog:chromeOptions`, `moz:firefoxOptions`, `safari:options`, `ms:edgeOptions`, plus `bstack:options` / `sauce:options`. Remote URLs via `provider = "browserstack"|"saucelabs"`, `grid_url`, or `username`/`access_key`. HTTPS via luasec.
 
 ### 8. Modern Tooling & Ecosystem (Phase 3)
-* **WebDriver BiDi**: Session capability `webSocketUrl: true` (`bidi = true`). RFC 6455 client in `src/webdriver/ws.lua` (text frames, ping/pong, `Sec-WebSocket-Accept`, close code/reason, RSV and fragmented-control rejection). JSON-RPC via `driver:bidi()`: `subscribe`, `on`, `navigate`, console logs, JS exceptions, `mock_request`. Chrome and Firefox both run this in `tests/phase3.lua`. Not a general WebSocket library (no subprotocols or permessage-deflate).
+* **WebDriver BiDi**: Session capability `webSocketUrl: true` (`bidi = true`). RFC 6455 client in `src/webdriver/ws.lua` (text frames, ping/pong, `Sec-WebSocket-Accept`, close code/reason, RSV and fragmented-control rejection). JSON-RPC via `driver:bidi()`: `subscribe`, `on`, `navigate`, `get_tree`, `reload`, `evaluate`, `call_function`, `capture_screenshot`, console logs, JS exceptions, `mock_request`. Chrome and Firefox both run this in `tests/phase3.lua`. Not a general WebSocket library (no subprotocols or permessage-deflate).
 * **CDP**: `driver:execute_cdp(cmd, params)` via ChromeDriver `/goog/cdp/execute`.
-* **Test runners**: `require("webdriver.test")` assertions (`equal`, `contains`, `matches`), `with_driver`, and `with_local_session` (HTTP fixture + session). Busted example in `spec/webdriver_spec.lua`.
+* **Test runners**: `require("webdriver.test")` assertions (`equal`, `contains`, `matches`), `with_driver`, and `with_local_session` (HTTP fixture + session). Busted example in `spec/webdriver_spec.lua`, run by `tests/run_spec.lua` (no busted package required). Wikipedia examples stay network-optional and are not in `tests/run.lua`.
 * **Page Object Model**: `driver:page({ locators })` and `Page.extend({ locators })` with `el` / `els` / `type` / `click` / `component` for nested regions. `Page.generate(driver, { name, url, out })` / `driver:generate_page` scans the current page for stable locators and writes a `Page.extend` module.
 * **Shadow DOM**: open roots via `element:shadow_root()`; finds from a shadow root use W3C `POST /shadow/{id}/element` (required by Gecko). Closed roots via `shadow_root({ pierce = true })` / `pierce_shadow()` / `find_in_shadow` (Chromium CDP). Slot helpers: `assigned_slot`, `assigned_nodes`, `assigned_elements`.
 * **Live browsers**: `lua tests/run.lua` runs the local suites on Chrome, then again on Firefox (`LUA_SELENIUM_BROWSER=firefox`) when `geckodriver` is on PATH. That includes BiDi console logs and `mock_request`. Shadow-root finds use W3C `/shadow/{id}/element` (Gecko requires it). CDP pierce and `goog:loggingPrefs` stay Chromium-only. Safari is out of scope.
 * **Launch / downloads**: `download_dir` (Chrome prefs + CDP `setDownloadBehavior`, Firefox `moz:firefoxOptions.prefs`). `user_data_dir` (Chrome/Edge `--user-data-dir`). `firefox_prefs` / `chrome_prefs`. `driver:wait_for_download(name, timeout)` waits for a finished file (ignores `.crdownload` / `.part`, requires stable non-empty size).
+* **Storage / permissions / WebAuthn**: `localStorage` and `sessionStorage` get/set/clear. `set_permission` (`POST /session/{id}/permissions`). Virtual authenticators (`add_virtual_authenticator`, credentials, `set_user_verified`). Drivers that do not implement those endpoints are skipped in tests.
 * **Packaging**: `src/webdriver.lua` with submodules `webdriver.ws`, `webdriver.bidi`, `webdriver.test`. SCM rockspec only (`luaselenium-scm-1.rockspec`); install from git. GitHub Actions runs `lua tests/run.lua`. CI Chromium sessions add `--no-sandbox` / `--disable-dev-shm-usage`. Linting is `luacheck` (Lua 5.1 in CI; 5.4/5.5 cannot run luacheck 1.2.0).
 
 ---
@@ -75,6 +76,7 @@ Nothing queued for library work.
 
 * **Safari**: out of scope. `safaridriver` is macOS-only.
 * **Closed-shadow pierce**: Chromium CDP only; Gecko does not expose closed trees.
+* **Pen/touch pointer types**: not implemented (mouse / keyboard / wheel only).
 
 ```text
 +-------------------------------------------------------------------------------+
@@ -164,3 +166,7 @@ What landed each pass, and what was left afterward.
 ### Iteration 18 — luacheck
 **Done:** `.luacheckrc` + `scripts/lint.sh`. CI lint job runs luacheck on Lua 5.1 (1.2.0 crashes on 5.4/5.5). Tightened `switch_to_frame` and WebSocket pong handling for the linter. No `ignore` list: unused `self`, long lines, and busted hook globals are fixed in code. Spec uses `lua53+busted` only.
 **Yet to do:** Safari out of scope; closed pierce Chromium-only.
+
+### Iteration 19 — coverage, firstMatch, BiDi, permissions
+**Done:** Tests for window position, screenshots, Actions `pause` / `move_by` / `click_and_hold`, and skip-safe `minimize_window` / `fullscreen_window`. `tests/run_spec.lua` runs the Busted example without the busted package; Wikipedia examples stay out of `tests/run.lua`. BiDi `get_tree`, `reload`, `evaluate`, `call_function`, `capture_screenshot`. `firstMatch` via `first_match`. `sessionStorage`. W3C `set_permission` and WebAuthn virtual authenticators. Luacheck stays on Lua 5.1. No Safari, no Gecko closed-shadow pierce, no numbered rock, no luarocks.org upload.
+**Yet to do:** Safari out of scope; closed pierce Chromium-only; pen/touch pointer types not implemented.

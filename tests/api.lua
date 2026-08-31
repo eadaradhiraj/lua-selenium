@@ -90,11 +90,50 @@ local ok, err = xpcall(function()
         check_eq("get_window_size width", wsz.width, sized.width)
         local pos = driver:get_window_position()
         check("get_window_position", type(pos.x) == "number")
+        local moved = driver:set_window_position(80, 60)
+        check("set_window_position", type(moved.x) == "number" and type(moved.y) == "number")
+
+        local function skip_or_pass(name, fn)
+            local ok, res = pcall(fn)
+            if ok then
+                check(name, type(res) == "table" and type(res.width) == "number")
+                return
+            end
+            print("  SKIP  " .. name .. " — " .. tostring(res):sub(1, 90))
+        end
+        skip_or_pass("minimize_window", function()
+            return driver:minimize_window()
+        end)
+        skip_or_pass("fullscreen_window", function()
+            return driver:fullscreen_window()
+        end)
+        driver:set_window_size(900, 700)
+
+        local png = string.char(137, 80, 78, 71, 13, 10, 26, 10)
+        local win_shot = "/tmp/lua-selenium-window.png"
+        driver:save_screenshot(win_shot)
+        local wf = io.open(win_shot, "rb")
+        local wmagic = wf and wf:read(8) or ""
+        if wf then wf:close() end
+        os.remove(win_shot)
+        check("save_screenshot PNG", wmagic == png)
+
+        local el_shot = "/tmp/lua-selenium-el.png"
+        driver:find_element(By.id("title")):save_screenshot(el_shot)
+        local ef = io.open(el_shot, "rb")
+        local emagic = ef and ef:read(8) or ""
+        if ef then ef:close() end
+        os.remove(el_shot)
+        check("element screenshot PNG", emagic == png)
 
         driver:set_local_storage("k", "v")
         check_eq("localStorage get", driver:get_local_storage("k"), "v")
         driver:clear_local_storage()
         check_eq("localStorage cleared", driver:get_local_storage("k"), nil)
+        driver:set_session_storage("sk", "sv")
+        check_eq("sessionStorage get", driver:get_session_storage("sk"), "sv")
+        driver:clear_session_storage()
+        check_eq("sessionStorage cleared", driver:get_session_storage("sk"), nil)
 
         print("\n[Element state]")
         local hidden = driver:find_element(By.id("hidden-box"))
@@ -208,6 +247,38 @@ local ok, err = xpcall(function()
         if f then f:close() end
         check("download file", body:find("hello lua-selenium download", 1, true) ~= nil,
             (path or "") .. " body=" .. tostring(body):sub(1, 120))
+
+        print("\n[Permissions / WebAuthn]")
+        local origin = driver:execute_script("return location.origin;")
+        local perm_ok, perm_err = pcall(function()
+            driver:set_permission("geolocation", "denied", { origin = origin })
+        end)
+        if perm_ok then
+            check("set_permission", true)
+        else
+            print("  SKIP  set_permission — " .. tostring(perm_err):sub(1, 90))
+        end
+
+        local auth_ok, auth_id = pcall(function()
+            return driver:add_virtual_authenticator({
+                protocol = "ctap2",
+                transport = "internal",
+                has_resident_key = true,
+                has_user_verification = true,
+                is_user_verified = true,
+            })
+        end)
+        if auth_ok and auth_id then
+            check("virtual authenticator", type(auth_id) == "string" or type(auth_id) == "number")
+            local creds = driver:get_credentials()
+            check("credentials list", type(creds) == "table")
+            driver:set_user_verified(true)
+            driver:remove_all_credentials()
+            driver:remove_virtual_authenticator()
+            check("remove virtual authenticator", true)
+        else
+            print("  SKIP  virtual authenticator — " .. tostring(auth_id):sub(1, 90))
+        end
     end)
 end, debug.traceback)
 

@@ -14,6 +14,10 @@ local function check(name, cond, extra)
     end
 end
 
+local function check_eq(name, actual, expected)
+    check(name, actual == expected, "expected " .. tostring(expected) .. ", got " .. tostring(actual))
+end
+
 print("[Assertion helpers]")
 local ok_eq = pcall(test.equal, 1, 1)
 check("equal success", ok_eq)
@@ -95,6 +99,22 @@ local ok, err = xpcall(function()
             return d:execute_script("return window.__api && window.__api.source;")
         end, 8)
         check("mocked fetch body", mocked == "mock")
+
+        print("\n[BiDi browsingContext / script]")
+        local tree = bidi:get_tree()
+        local contexts = tree and tree.contexts
+        check("getTree contexts", type(contexts) == "table" and contexts[1] ~= nil)
+        check("getTree context id", type(bidi:get_context_id()) == "string")
+
+        check_eq("script.evaluate", bidi:evaluate("1 + 2"), 3)
+        local summed = bidi:call_function("function(a, b) { return a + b; }", { 2, 3 })
+        check_eq("script.callFunction", summed, 5)
+
+        bidi:reload()
+        check_eq("reload title", driver:get_title(), "Lua Selenium Fixture")
+
+        local shot = bidi:capture_screenshot()
+        check("captureScreenshot", type(shot) == "string" and #shot > 100)
 
         print("\n[CDP]")
         if driver:is_chromium() then

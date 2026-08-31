@@ -377,21 +377,7 @@ end
 -----------------------------------------------------------
 -- Capability builders
 -----------------------------------------------------------
-local function build_always_match(options)
-    local browser = normalize_browser(options.browser_name or options.browser)
-    local headless = options.headless == true
-    local extra_args = options.args
-    local download_dir = options.download_dir
-    if download_dir then
-        ensure_dir(download_dir)
-    end
-    if options.user_data_dir then
-        ensure_dir(options.user_data_dir)
-    end
-
-    local always = {
-        browserName = browser
-    }
+local function apply_shared_capabilities(always, options)
     if options.accept_insecure_certs then
         always.acceptInsecureCerts = true
     end
@@ -413,6 +399,41 @@ local function build_always_match(options)
     if options.timeouts then
         always.timeouts = options.timeouts
     end
+    if options.bstack_options then
+        always["bstack:options"] = options.bstack_options
+    end
+    if options.sauce_options then
+        always["sauce:options"] = options.sauce_options
+    end
+    if options.bidi then
+        always.webSocketUrl = true
+    end
+    if options.webauthn then
+        always["webauthn:virtualAuthenticators"] = true
+    end
+    if options.capabilities then
+        for k, v in pairs(options.capabilities) do
+            always[k] = v
+        end
+    end
+    return always
+end
+
+local function build_browser_match(options)
+    local browser = normalize_browser(options.browser_name or options.browser)
+    local headless = options.headless == true
+    local extra_args = options.args
+    local download_dir = options.download_dir
+    if download_dir then
+        ensure_dir(download_dir)
+    end
+    if options.user_data_dir then
+        ensure_dir(options.user_data_dir)
+    end
+
+    local always = {
+        browserName = browser
+    }
 
     if browser == "chrome" then
         local chrome = copy_table(options.chrome_options)
@@ -498,15 +519,6 @@ local function build_always_match(options)
         always["ms:edgeOptions"] = edge
     end
 
-    if options.bstack_options then
-        always["bstack:options"] = options.bstack_options
-    end
-    if options.sauce_options then
-        always["sauce:options"] = options.sauce_options
-    end
-    if options.bidi then
-        always.webSocketUrl = true
-    end
     if browser == "chrome" or browser == "MicrosoftEdge" then
         if options.logging then
             always["goog:loggingPrefs"] = options.logging
@@ -514,17 +526,46 @@ local function build_always_match(options)
             always["goog:loggingPrefs"] = { browser = "ALL" }
         end
     end
-    if options.capabilities then
-        for k, v in pairs(options.capabilities) do
-            always[k] = v
-        end
-    end
 
     return always
 end
 
+local function build_always_match(options)
+    local always = build_browser_match(options)
+    return apply_shared_capabilities(always, options)
+end
+
+local function inherit_match_options(parent, entry)
+    local merged = copy_table(entry)
+    local keys = {
+        "headless", "args", "binary", "download_dir", "user_data_dir",
+        "chrome_options", "firefox_options", "edge_options", "safari_options",
+        "chrome_prefs", "firefox_prefs", "prefs", "firefox_profile",
+        "logging", "browser_log",
+    }
+    for _, key in ipairs(keys) do
+        if merged[key] == nil then
+            merged[key] = parent[key]
+        end
+    end
+    return merged
+end
+
 function WebDriver.build_capabilities(options)
     options = options or {}
+    local first = options.first_match or options.firstMatch
+    if type(first) == "table" and first[1] ~= nil then
+        local matches = {}
+        for i, entry in ipairs(first) do
+            matches[i] = build_browser_match(inherit_match_options(options, entry))
+        end
+        local caps = { firstMatch = json_array(matches) }
+        local always = apply_shared_capabilities({}, options)
+        if next(always) ~= nil then
+            caps.alwaysMatch = always
+        end
+        return caps
+    end
     options.browser_name = normalize_browser(options.browser_name or options.browser)
     return { alwaysMatch = build_always_match(options) }
 end
@@ -737,9 +778,7 @@ function WebDriver.new(options, browser_name)
     end
 
     local payload = {
-        capabilities = {
-            alwaysMatch = build_always_match(options)
-        }
+        capabilities = WebDriver.build_capabilities(options)
     }
 
     local res = request("POST", server_url .. "/session", payload)
@@ -1074,6 +1113,150 @@ end
 
 function WebDriver:clear_local_storage()
     return self:execute_script("window.localStorage.clear();")
+end
+
+function WebDriver:get_session_storage(key)
+    return self:execute_script("return window.sessionStorage.getItem(arguments[0]);", { key })
+end
+
+function WebDriver:set_session_storage(key, value)
+    return self:execute_script(
+        "window.sessionStorage.setItem(arguments[0], arguments[1]);",
+        { key, value }
+    )
+end
+
+function WebDriver:clear_session_storage()
+    return self:execute_script("window.sessionStorage.clear();")
+end
+
+-- W3C Permissions automation: POST /session/{id}/permissions
+function WebDriver:set_permission(descriptor, state, opts)
+    opts = opts or {}
+    if type(descriptor) == "string" then
+        descriptor = { name = descriptor }
+    end
+    local payload = {
+        descriptor = descriptor,
+        state = state,
+    }
+    if opts.origin then
+        payload.origin = opts.origin
+    end
+    if opts.embedded_origin or opts.embeddedOrigin then
+        payload.embeddedOrigin = opts.embedded_origin or opts.embeddedOrigin
+    end
+    if opts.one_realm ~= nil then
+        payload.oneRealm = opts.one_realm
+    elseif opts.oneRealm ~= nil then
+        payload.oneRealm = opts.oneRealm
+    end
+    return request("POST", self.base_url .. "/permissions", payload)
+end
+
+local function webauthn_authenticator_body(opts)
+    opts = opts or {}
+    local body = {
+        protocol = opts.protocol or "ctap2",
+        transport = opts.transport or "internal",
+    }
+    local function set_flag(camel, snake, default)
+        local value = opts[snake]
+        if value == nil then
+            value = opts[camel]
+        end
+        if value == nil then
+            value = default
+        end
+        if value ~= nil then
+            body[camel] = value
+        end
+    end
+    set_flag("hasResidentKey", "has_resident_key", false)
+    set_flag("hasUserVerification", "has_user_verification", true)
+    set_flag("isUserConsenting", "is_user_consenting", true)
+    set_flag("isUserVerified", "is_user_verified", true)
+    set_flag("automaticPresenceSimulation", "automatic_presence_simulation")
+    return body
+end
+
+local function webauthn_id(self, authenticator_id)
+    local id = authenticator_id or self._authenticator_id
+    if not id then
+        error("No virtual authenticator id (call add_virtual_authenticator first)")
+    end
+    return id
+end
+
+function WebDriver:add_virtual_authenticator(opts)
+    local id = request(
+        "POST",
+        self.base_url .. "/webauthn/authenticator",
+        webauthn_authenticator_body(opts)
+    )
+    if type(id) == "table" then
+        id = id.authenticatorId or id.authenticator_id
+    end
+    self._authenticator_id = id
+    return id
+end
+
+function WebDriver:remove_virtual_authenticator(authenticator_id)
+    local id = webauthn_id(self, authenticator_id)
+    request("DELETE", self.base_url .. "/webauthn/authenticator/" .. id)
+    if self._authenticator_id == id then
+        self._authenticator_id = nil
+    end
+    return true
+end
+
+function WebDriver:add_credential(credential, authenticator_id)
+    credential = credential or {}
+    local id = webauthn_id(self, authenticator_id)
+    local body = {
+        credentialId = credential.credential_id or credential.credentialId,
+        isResidentCredential = credential.is_resident_credential
+            or credential.isResidentCredential,
+        rpId = credential.rp_id or credential.rpId,
+        privateKey = credential.private_key or credential.privateKey,
+        userHandle = credential.user_handle or credential.userHandle,
+        signCount = credential.sign_count or credential.signCount or 0,
+        largeBlob = credential.large_blob or credential.largeBlob,
+    }
+    return request(
+        "POST",
+        self.base_url .. "/webauthn/authenticator/" .. id .. "/credential",
+        body
+    )
+end
+
+function WebDriver:get_credentials(authenticator_id)
+    local id = webauthn_id(self, authenticator_id)
+    return request("GET", self.base_url .. "/webauthn/authenticator/" .. id .. "/credentials")
+end
+
+function WebDriver:remove_all_credentials(authenticator_id)
+    local id = webauthn_id(self, authenticator_id)
+    return request(
+        "DELETE",
+        self.base_url .. "/webauthn/authenticator/" .. id .. "/credentials"
+    )
+end
+
+function WebDriver:remove_credential(credential_id, authenticator_id)
+    local id = webauthn_id(self, authenticator_id)
+    credential_id = credential_id or ""
+    return request(
+        "DELETE",
+        self.base_url .. "/webauthn/authenticator/" .. id .. "/credentials/" .. credential_id
+    )
+end
+
+function WebDriver:set_user_verified(verified, authenticator_id)
+    local id = webauthn_id(self, authenticator_id)
+    return request("POST", self.base_url .. "/webauthn/authenticator/" .. id .. "/uv", {
+        isUserVerified = verified ~= false
+    })
 end
 
 -----------------------------------------------------------

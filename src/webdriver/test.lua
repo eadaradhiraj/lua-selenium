@@ -95,13 +95,15 @@ function M.install_busted(busted_assert, opts)
             return driver
         end
     }
-    if type(before_each) == "function" then
-        before_each(function()
+    local before = rawget(_G, "before_each")
+    local after = rawget(_G, "after_each")
+    if type(before) == "function" then
+        before(function()
             driver = WebDriver.new(opts)
         end)
     end
-    if type(after_each) == "function" then
-        after_each(function()
+    if type(after) == "function" then
+        after(function()
             if driver then
                 pcall(function() driver:quit() end)
                 driver = nil

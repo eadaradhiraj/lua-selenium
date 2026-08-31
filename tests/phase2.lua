@@ -83,7 +83,8 @@ local ff_dl = WebDriver.build_capabilities({
     browser = "firefox",
     download_dir = "/tmp/lua-selenium-dl-caps",
 })
-check_eq("firefox download pref", ff_dl.alwaysMatch["moz:firefoxOptions"].prefs["browser.download.dir"], "/tmp/lua-selenium-dl-caps")
+local ff_prefs = ff_dl.alwaysMatch["moz:firefoxOptions"].prefs
+check_eq("firefox download pref", ff_prefs["browser.download.dir"], "/tmp/lua-selenium-dl-caps")
 
 print("\nAuto-spawning " .. test.requested_browser() .. " + fixture...")
 local spawned_port

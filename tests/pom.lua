@@ -73,8 +73,10 @@ local ok, err = xpcall(function()
 
         if driver:is_chromium() then
             local pierced = closed:shadow_root({ pierce = true })
-            check("pierced closed shadow root", pierced ~= nil and pierced.find_element ~= nil)
-            check_eq("text inside closed shadow", pierced:find_element(By.id("closed-text")):get_text(), "inside closed")
+            local can_find = pierced ~= nil and type(pierced.find_element) == "function"
+            check("pierced closed shadow root", can_find)
+            local closed_text = pierced:find_element(By.id("closed-text")):get_text()
+            check_eq("text inside closed shadow", closed_text, "inside closed")
             closed:find_in_shadow(By.id("closed-btn")):click()
             check_eq("closed shadow click reaches host", closed:get_attribute("data-clicked"), "1")
         else

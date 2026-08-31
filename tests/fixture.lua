@@ -52,8 +52,10 @@ local html = [[<!DOCTYPE html>
   <div id="shift-target" style="width:120px;padding:8px;background:#bbb;">shift click</div>
   <a id="download-link" href="/download.txt" download="lua-selenium.txt">download</a>
   <div id="scroll-pad" style="height:2400px;width:8px;"></div>
-  <div id="src" style="position:absolute;left:20px;top:420px;width:48px;height:48px;background:#c00;color:#fff;">src</div>
-  <div id="dst" style="position:absolute;left:220px;top:420px;width:96px;height:96px;background:#00c;color:#fff;">dst</div>
+  <div id="src" style="position:absolute;left:20px;top:420px;width:48px;
+    height:48px;background:#c00;color:#fff;">src</div>
+  <div id="dst" style="position:absolute;left:220px;top:420px;width:96px;
+    height:96px;background:#00c;color:#fff;">dst</div>
   <script>
     window.__api = null;
     document.getElementById('login-btn').addEventListener('click', function() {

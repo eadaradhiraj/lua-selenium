@@ -2029,7 +2029,7 @@ function Select:first_selected_option()
     end
 end
 
-function WebDriver:select(element)
+function WebDriver.select(_, element)
     return Select.new(element)
 end
 

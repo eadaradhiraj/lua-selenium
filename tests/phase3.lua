@@ -38,7 +38,8 @@ local ok, err = xpcall(function()
         bidi = true,
     }, function(driver, fixture_url)
         local api_url = fixture_url:gsub("/$", "") .. "/api.json"
-        check("websocket url present", type(driver.websocket_url) == "string" and #driver.websocket_url > 0, driver.websocket_url)
+        local ws = driver.websocket_url
+        check("websocket url present", type(ws) == "string" and #ws > 0, ws)
 
         driver:get(fixture_url)
         check("navigated", driver:get_title() == "Lua Selenium Fixture")

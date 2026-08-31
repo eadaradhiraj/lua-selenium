@@ -22,7 +22,10 @@ local function check_eq(name, actual, expected)
 end
 
 print("Starting fixture server...")
-os.execute("lua tests/fixture.lua 8768 >/tmp/lua-selenium-fixture-api.log 2>&1 & echo $! >/tmp/lua-selenium-fixture-api.pid")
+os.execute(
+    "lua tests/fixture.lua 8768 >/tmp/lua-selenium-fixture-api.log 2>&1"
+        .. " & echo $! >/tmp/lua-selenium-fixture-api.pid"
+)
 socket.sleep(0.3)
 local fixture_url = "http://127.0.0.1:8768/"
 
@@ -47,12 +50,14 @@ local ok, err = xpcall(function()
         local st = driver:status()
         check("GET /status", type(st) == "table" and type(st.ready) == "boolean", "got " .. tostring(st and st.ready))
         local role = driver:find_element(By.id("title")):get_computed_role()
-        check("computedrole heading", role == "heading" or tostring(role):find("heading", 1, true) ~= nil, "got " .. tostring(role))
+        local is_heading = role == "heading" or tostring(role):find("heading", 1, true)
+        check("computedrole heading", is_heading ~= nil and is_heading ~= false, "got " .. tostring(role))
         local label = driver:find_element(By.id("title")):get_computed_label()
         check("computedlabel", type(label) == "string" and #label > 0, "got " .. tostring(label))
 
         print("\n[Navigation / source]")
-        check_eq("EC.title_is", driver:wait_until(WebDriver.EC.title_is("Lua Selenium Fixture"), 2), "Lua Selenium Fixture")
+        local title = driver:wait_until(WebDriver.EC.title_is("Lua Selenium Fixture"), 2)
+        check_eq("EC.title_is", title, "Lua Selenium Fixture")
         check("page source", tostring(driver:get_page_source()):find("Fixture Home", 1, true) ~= nil)
 
         driver:find_element(By.id("wiki-link")):click()
@@ -151,7 +156,8 @@ local ok, err = xpcall(function()
         check_eq("visibility_of_element", el:get_text(), "Fixture Home")
         local clickable = driver:wait_until(WebDriver.EC.element_to_be_clickable(By.id("alert-btn")), 2)
         check("element_to_be_clickable", clickable ~= nil)
-        check("invisibility_of_element", driver:wait_until(WebDriver.EC.invisibility_of_element(By.id("hidden-box")), 2) == true)
+        local gone = driver:wait_until(WebDriver.EC.invisibility_of_element(By.id("hidden-box")), 2)
+        check("invisibility_of_element", gone == true)
         check("text_to_be_present_in_element", driver:wait_until(
             WebDriver.EC.text_to_be_present_in_element(By.id("title"), "Fixture"), 2
         ) ~= nil)

@@ -162,5 +162,5 @@ What landed each pass, and what was left afterward.
 **Yet to do:** Safari out of scope; closed pierce Chromium-only.
 
 ### Iteration 18 — luacheck
-**Done:** `.luacheckrc` + `scripts/lint.sh`. CI lint job runs luacheck on Lua 5.1 (1.2.0 crashes on 5.4/5.5). Tightened `switch_to_frame` and WebSocket pong handling for the linter.
+**Done:** `.luacheckrc` + `scripts/lint.sh`. CI lint job runs luacheck on Lua 5.1 (1.2.0 crashes on 5.4/5.5). Tightened `switch_to_frame` and WebSocket pong handling for the linter. No `ignore` list: unused `self`, long lines, and busted hook globals are fixed in code. Spec uses `lua53+busted` only.
 **Yet to do:** Safari out of scope; closed pierce Chromium-only.

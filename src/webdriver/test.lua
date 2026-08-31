@@ -171,26 +171,23 @@ function M.start_fixture(port)
     error("fixture server did not start on port " .. tostring(port))
 end
 
--- Chrome for Testing in CI can have a viewport taller than the page, so a
--- wheel action is a no-op (scrollY stays 0). Shrink the window, origin the
--- wheel on the pad, and wait for scrollY.
+-- Headless Chrome can open a viewport taller than the fixture, so a wheel
+-- action is a no-op. Size the pad from innerHeight and scroll at a point
+-- inside the viewport (element origin is out of bounds in Firefox).
 function M.wheel_scroll_y(driver, dy)
     dy = dy or 600
-    pcall(function()
-        driver:set_window_size(800, 500)
-    end)
     driver:execute_script([[
         var el = document.getElementById('scroll-pad');
+        var h = Math.max((window.innerHeight || 800) * 4, 8000);
         if (el) {
-            el.style.height = '4000px';
+            el.style.height = h + 'px';
             el.style.width = '100%';
         }
         document.documentElement.style.overflow = 'auto';
+        document.body.style.overflow = 'auto';
         window.scrollTo(0, 0);
     ]])
-    local WebDriver = require("webdriver")
-    local pad = driver:find_element(WebDriver.By.id("scroll-pad"))
-    driver:scroll(0, dy, { origin = pad, duration = 250 })
+    driver:scroll(0, dy, { origin = "viewport", x = 50, y = 50, duration = 250 })
     return driver:wait_until(function(d)
         local y = d:execute_script("return window.scrollY || window.pageYOffset || 0;")
         return type(y) == "number" and y > 50 and y

@@ -197,9 +197,7 @@ local ok, err = xpcall(function()
         check("element:submit", submitted == true)
 
         print("\n[Scroll / download]")
-        driver:execute_script("window.scrollTo(0,0);")
-        driver:scroll(0, 600)
-        local y = driver:execute_script("return window.scrollY || window.pageYOffset || 0;")
+        local y = test.wheel_scroll_y(driver, 600)
         check("driver:scroll", type(y) == "number" and y > 50, "scrollY=" .. tostring(y))
 
         driver:get(fixture_url)

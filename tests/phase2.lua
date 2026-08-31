@@ -146,8 +146,7 @@ local ok, err = xpcall(function()
     check_eq("Shift+Click", attr("shift-target", "data-shift"), "1")
 
     print("\n[Actions: wheel scroll]")
-    driver:scroll(0, 500)
-    local y = driver:execute_script("return window.scrollY || window.pageYOffset || 0;")
+    local y = test.wheel_scroll_y(driver, 500)
     check("scrolled down", type(y) == "number" and y > 50, "scrollY=" .. tostring(y))
 
     print("\n[Driver lifecycle]")
